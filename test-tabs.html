@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tab Functionality Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #fff; }
+    .test { margin: 10px 0; padding: 10px; background: rgba(0,212,255,0.1); border-left: 3px solid #00d4ff; }
+    .pass { border-left-color: #4ade80; background: rgba(74,222,128,0.1); }
+    .fail { border-left-color: #ef4444; background: rgba(239,68,68,0.1); }
+  </style>
+</head>
+<body>
+  <h1>Multi-Board Tabs Test Suite</h1>
+  <div id="results"></div>
+
+  <script>
+    const results = document.getElementById('results');
+
+    async function test(name, fn) {
+      try {
+        await fn();
+        results.innerHTML += `<div class="test pass">✓ ${name}</div>`;
+      } catch (err) {
+        results.innerHTML += `<div class="test fail">✗ ${name}: ${err.message}</div>`;
+      }
+    }
+
+    async function runTests() {
+      // Test 1: Load boards
+      await test('Load boards from API', async () => {
+        const res = await fetch('/api/tasks');
+        const data = await res.json();
+        if (!data.boards || data.boards.length === 0) throw new Error('No boards found');
+      });
+
+      // Test 2: Check board structure
+      await test('Verify board structure', async () => {
+        const res = await fetch('/api/tasks');
+        const data = await res.json();
+        const board = data.boards[0];
+        if (!board.id || !board.title || !board.columns) throw new Error('Invalid board structure');
+      });
+
+      // Test 3: Create new board
+      await test('Create new board', async () => {
+        const res = await fetch('/api/board', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Test Board ' + Date.now() })
+        });
+        const result = await res.json();
+        if (!result.ok || !result.board) throw new Error('Failed to create board');
+      });
+
+      // Test 4: Verify localStorage
+      await test('LocalStorage tab state', () => {
+        localStorage.setItem('kanban-tabs', JSON.stringify({
+          openTabs: ['default', 'board-123'],
+          currentBoardId: 'default'
+        }));
+        const saved = JSON.parse(localStorage.getItem('kanban-tabs'));
+        if (saved.openTabs.length !== 2) throw new Error('Tab state not saved');
+      });
+
+      // Test 5: Test empty board name validation
+      await test('Reject empty board name', async () => {
+        const res = await fetch('/api/board', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: '' })
+        });
+        if (res.ok) throw new Error('Should reject empty board name');
+      });
+
+      results.innerHTML += '<div class="test" style="margin-top:20px; border-left-color: #00d4ff;"><strong>All tests completed!</strong></div>';
+    }
+
+    runTests();
+  </script>
+</body>
+</html>

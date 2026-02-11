@@ -1,0 +1,4907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00d4ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+      min-height: 100vh;
+      color: #e4e4e4;
+    }
+    
+    header {
+      background: rgba(0,0,0,0.3);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    h1 {
+      font-size: 1.5rem;
+      color: #00d4ff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 img {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 0.85rem;
+      color: #888;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .board {
+      display: flex;
+      gap: 16px;
+      padding: 24px;
+      overflow-x: auto;
+      min-height: calc(100vh - 80px);
+    }
+    
+    .column {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      min-width: 300px;
+      max-width: 300px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .column-header {
+      padding: 16px;
+      font-weight: 600;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .task-count {
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+    }
+    
+    .column-tasks {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      min-height: 200px;
+    }
+    
+    .column-tasks.drag-over {
+      background: rgba(0, 212, 255, 0.1);
+    }
+    
+    .task {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 10px;
+      border-left: 3px solid #00d4ff;
+      cursor: grab;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    
+    .task:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    .task.dragging {
+      opacity: 0.5;
+      cursor: grabbing;
+    }
+
+    .task.starred-task {
+      background: rgba(255, 215, 0, 0.15);
+      border-left-color: #ffd700 !important;
+    }
+
+    .task.starred-task:hover {
+      background: rgba(255, 215, 0, 0.2);
+    }
+
+    .task-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+    
+    .task-description {
+      font-size: 0.85rem;
+      color: #aaa;
+      line-height: 1.4;
+    }
+
+    .task-description a {
+      color: #00d4ff;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+      transition: all 0.15s;
+    }
+
+    .task-description a:hover {
+      color: #33ddff;
+      border-bottom-color: #00d4ff;
+    }
+
+    /* Ensure links open in external browser */
+    .task-description a[target="_blank"]::after {
+      content: " ↗";
+      font-size: 0.8em;
+      opacity: 0.6;
+    }
+
+    .task-description p {
+      margin: 0 0 8px 0;
+    }
+
+    .task-description p:last-child {
+      margin-bottom: 0;
+    }
+
+    .task-description ul, .task-description ol {
+      margin: 4px 0;
+      padding-left: 20px;
+    }
+
+    .task-description code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .task-title {
+      cursor: grab;
+    }
+
+    .task-title:active {
+      cursor: grabbing;
+    }
+    
+    .task-meta {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .task-actions {
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    
+    .task:hover .task-actions {
+      opacity: 1;
+    }
+    
+    .task-actions button {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 2px 6px;
+      font-size: 0.8rem;
+    }
+    
+    .task-actions button:hover {
+      color: #ff4444;
+    }
+    
+    .column.done .task { border-left-color: #4ade80; }
+    .column.waiting .task { border-left-color: #fbbf24; }
+    .column.in-progress .task { border-left-color: #818cf8; }
+    
+    .add-task {
+      padding: 12px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .add-task button {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px dashed rgba(255,255,255,0.2);
+      color: #888;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    
+    .add-task button:hover {
+      background: rgba(0, 212, 255, 0.1);
+      border-color: #00d4ff;
+      color: #00d4ff;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.8);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    
+    .modal.active { display: flex; }
+    
+    .modal-content {
+      background: #1a1a2e;
+      padding: 24px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 800px;
+    }
+    
+    .modal h2 {
+      margin-bottom: 16px;
+      color: #00d4ff;
+    }
+    
+    .modal input, .modal textarea {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-family: inherit;
+    }
+    
+    .modal textarea {
+      min-height: 200px;
+      resize: vertical;
+    }
+    
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+    
+    .modal-actions button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    
+    .btn-primary {
+      background: #00d4ff;
+      color: #1a1a2e;
+    }
+    
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    
+    .empty-state {
+      color: #444;
+      text-align: center;
+      padding: 40px 20px;
+      font-style: italic;
+    }
+
+    .comments-icon {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 0.9em;
+      opacity: 0.7;
+    }
+
+    .comments-preview {
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 8px;
+      padding: 6px 8px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 4px;
+      border-left: 2px solid rgba(0, 212, 255, 0.3);
+      font-style: italic;
+    }
+
+    /* Comments Section */
+    .comments-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .comments-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+
+    .comment {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-left: 3px solid rgba(0, 212, 255, 0.5);
+    }
+
+    .comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.8rem;
+    }
+
+    .comment-author {
+      font-weight: 600;
+      color: #00d4ff;
+    }
+
+    .comment-author.author-llm {
+      color: #a855f7;
+    }
+
+    .comment-author.author-user {
+      color: #4ade80;
+    }
+
+    .comment-timestamp {
+      color: #666;
+      font-size: 0.75rem;
+    }
+
+    .comment-edited {
+      color: #888;
+      font-size: 0.7rem;
+      font-style: italic;
+      margin-left: 6px;
+    }
+
+    .comment-body {
+      color: #ddd;
+      line-height: 1.5;
+      font-size: 0.9rem;
+    }
+
+    .comment-body p {
+      margin: 0 0 8px 0;
+    }
+
+    .comment-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    .comment-body code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    .comment-body pre {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .comment-body a {
+      color: #00d4ff;
+      text-decoration: none;
+    }
+
+    .comment-body a:hover {
+      text-decoration: underline;
+    }
+
+    .comment-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .comment-actions button {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+
+    .comment-actions button:hover {
+      background: rgba(255,255,255,0.05);
+      color: #00d4ff;
+    }
+
+    .comment-edit-area {
+      margin-top: 8px;
+    }
+
+    .comment-edit-area textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 8px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.9rem;
+      resize: vertical;
+    }
+
+    .comment-edit-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      justify-content: flex-end;
+    }
+
+    .add-comment-section {
+      margin-top: 8px;
+    }
+
+    .add-comment-author {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .add-comment-author input {
+      flex: 0 0 120px;
+      padding: 4px 8px;
+      margin: 0;
+      font-size: 12px;
+    }
+
+    .add-comment-input {
+      width: 100%;
+      min-height: 28px;
+      max-height: 100px;
+      padding: 4px 6px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 12px;
+      resize: vertical;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    .add-comment-btn {
+      padding: 5px 10px;
+      background: rgba(0, 212, 255, 0.2);
+      border: 1px solid #00d4ff;
+      font-size: 12px;
+      color: #00d4ff;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .add-comment-btn:hover {
+      background: rgba(0, 212, 255, 0.3);
+    }
+
+    .add-comment-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .comments-empty {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+      font-style: italic;
+      font-size: 0.85rem;
+    }
+
+    .modal label {
+      display: block;
+      color: #aaa;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      margin-top: 12px;
+    }
+
+    .modal label:first-of-type {
+      margin-top: 0;
+    }
+
+    .modal select {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .modal select option {
+      background: #1a1a2e;
+      color: #fff;
+    }
+
+    .priority-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
+    .priority-critical {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .priority-high {
+      background: rgba(249, 115, 22, 0.2);
+      color: #f97316;
+      border: 1px solid rgba(249, 115, 22, 0.4);
+    }
+
+    .priority-medium {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+      border: 1px solid rgba(234, 179, 8, 0.4);
+    }
+
+    .priority-low {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+
+    /* Urgency badges */
+    .urgency-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
+    .urgency-overdue {
+      background: rgba(220, 53, 69, 0.25);
+      color: #dc3545;
+      border: 1px solid rgba(220, 53, 69, 0.5);
+    }
+
+    .urgency-today {
+      background: rgba(253, 126, 20, 0.25);
+      color: #fd7e14;
+      border: 1px solid rgba(253, 126, 20, 0.5);
+    }
+
+    .urgency-tomorrow {
+      background: rgba(255, 193, 7, 0.25);
+      color: #ffc107;
+      border: 1px solid rgba(255, 193, 7, 0.5);
+    }
+
+    .urgency-week {
+      background: rgba(13, 202, 240, 0.2);
+      color: #0dcaf0;
+      border: 1px solid rgba(13, 202, 240, 0.4);
+    }
+
+    /* Tag input styles */
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      min-height: 44px;
+      align-items: center;
+    }
+
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+      border: 1px solid rgba(0, 212, 255, 0.4);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .tag-pill button {
+      background: none;
+      border: none;
+      color: #00d4ff;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1;
+      opacity: 0.7;
+    }
+
+    .tag-pill button:hover {
+      opacity: 1;
+    }
+
+    .tag-input {
+      flex: 1;
+      min-width: 100px;
+      background: none;
+      border: none;
+      color: #fff;
+      outline: none;
+      padding: 4px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+
+    .tags-container {
+      position: relative;
+    }
+
+    .tag-autocomplete {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #1a1a2e;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      margin-top: 4px;
+    }
+
+    .tag-autocomplete.visible {
+      display: block;
+    }
+
+    .tag-autocomplete-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    .tag-autocomplete-item:hover,
+    .tag-autocomplete-item.selected {
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+    }
+
+    .tag-autocomplete-item .match {
+      color: #00d4ff;
+      font-weight: 600;
+    }
+
+    .task-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    .task-tags .tag-pill {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+    }
+
+    /* Filter and sort controls */
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.05);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    .filter-group label {
+      color: #888;
+      font-size: 0.8rem;
+      margin-right: 4px;
+    }
+
+    .filter-group select {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .filter-group select option {
+      background: #1a1a2e;
+    }
+
+    .filter-input-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      padding: 4px 8px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      min-width: 220px;
+      max-width: 400px;
+      position: relative;
+      cursor: text;
+    }
+
+    .filter-input-container:focus-within {
+      border-color: rgba(0, 212, 255, 0.5);
+    }
+
+    .filter-input-container .tag-pill {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+    }
+
+    .filter-input-container .tag-pill button {
+      font-size: 0.8rem;
+    }
+
+    .filter-input-container input {
+      flex: 1;
+      min-width: 80px;
+      background: none;
+      border: none;
+      color: #fff;
+      outline: none;
+      padding: 4px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+
+    .filter-input-container .tag-autocomplete {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 4px;
+    }
+
+    .clear-filters {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #888;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .clear-filters:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+    }
+
+    .stat-item .stat-value {
+      font-weight: 700;
+      color: #00d4ff;
+    }
+
+    .stat-item.critical .stat-value { color: #ef4444; }
+    .stat-item.high .stat-value { color: #f97316; }
+    .stat-item.progress .stat-value { color: #818cf8; }
+    .stat-item.done .stat-value { color: #4ade80; }
+
+    /* Progress ring */
+    .progress-ring {
+      position: relative;
+      width: 32px;
+      height: 32px;
+    }
+
+    .progress-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .progress-ring .progress-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: #4ade80;
+    }
+
+    /* Focus mode button */
+    .focus-btn {
+      background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .focus-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    }
+
+    .focus-btn.active {
+      background: linear-gradient(135deg, #4ade80 0%, #00d4ff 100%);
+    }
+
+    /* Task age indicator */
+    .task-age {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+
+    .task-age.fresh {
+      background: rgba(74, 222, 128, 0.2);
+      color: #4ade80;
+    }
+
+    .task-age.aging {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+    }
+
+    .task-age.stale {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    /* Today's Focus Panel */
+    .todays-focus-panel {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(249, 115, 22, 0.1) 100%);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      border-radius: 12px;
+      margin: 16px 24px;
+      padding: 16px 20px;
+      display: none;
+    }
+
+    .todays-focus-panel.visible {
+      display: block;
+    }
+
+    .todays-focus-panel.has-tasks {
+      display: block;
+    }
+
+    .todays-focus-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .todays-focus-header h3 {
+      color: #fbbf24;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .todays-focus-header .focus-count {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+    }
+
+    .todays-focus-header .clear-focus-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #888;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .todays-focus-header .clear-focus-btn:hover {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .todays-focus-tasks {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .focus-task-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-radius: 8px;
+      padding: 12px 16px;
+      flex: 1;
+      min-width: 200px;
+      max-width: 350px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .focus-task-card:hover {
+      background: rgba(0, 0, 0, 0.4);
+      border-color: #fbbf24;
+      transform: translateY(-2px);
+    }
+
+    .focus-task-card .task-number {
+      position: absolute;
+      top: -8px;
+      left: -8px;
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+      color: #1a1a2e;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+
+    .focus-task-card .focus-task-title {
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .focus-task-card .focus-task-column {
+      font-size: 0.75rem;
+      color: #888;
+    }
+
+    .focus-task-card .unstar-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #fbbf24;
+      cursor: pointer;
+      font-size: 1rem;
+      opacity: 0.6;
+      transition: opacity 0.15s;
+    }
+
+    .focus-task-card .unstar-btn:hover {
+      opacity: 1;
+    }
+
+    .focus-empty-slot {
+      background: rgba(255, 255, 255, 0.02);
+      border: 2px dashed rgba(251, 191, 36, 0.2);
+      border-radius: 8px;
+      padding: 20px;
+      flex: 1;
+      min-width: 200px;
+      max-width: 350px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+
+    /* Star button on task cards */
+    .star-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 6px;
+      opacity: 0.4;
+      transition: all 0.15s;
+    }
+
+    .star-btn:hover {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+
+    .star-btn.starred {
+      opacity: 1;
+      color: #fbbf24;
+      text-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+    }
+
+    .task.starred-task {
+      box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.4), 0 4px 12px rgba(251, 191, 36, 0.1);
+    }
+
+    /* Confetti canvas */
+    #confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Streak counter */
+    .streak-badge {
+      background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+      color: #1a1a2e;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Quick add keyboard hint */
+    .keyboard-hint {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.8);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      color: #888;
+      display: flex;
+      gap: 16px;
+    }
+
+    .keyboard-hint kbd {
+      background: rgba(255,255,255,0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #00d4ff;
+      font-family: monospace;
+    }
+
+    /* Selected task highlight */
+    .task.selected {
+      outline: 2px solid #00d4ff;
+      outline-offset: 2px;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+
+    .column.selected-column {
+      background: rgba(0, 212, 255, 0.08);
+    }
+
+    /* Vim command bar */
+    .vim-command-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1a1a2e;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding: 8px 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.9rem;
+      display: none;
+      z-index: 1000;
+    }
+
+    .vim-command-bar.active {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .vim-command-bar .prompt {
+      color: #00d4ff;
+    }
+
+    .vim-command-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: inherit;
+      outline: none;
+    }
+
+    /* Vim mode indicator */
+    .vim-mode {
+      position: fixed;
+      bottom: 50px;
+      left: 16px;
+      background: rgba(0,0,0,0.8);
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.75rem;
+      color: #4ade80;
+      font-weight: 600;
+    }
+
+    .vim-mode.insert {
+      color: #00d4ff;
+    }
+
+    .vim-mode.command {
+      color: #fbbf24;
+    }
+
+    /* Pending keys display */
+    .pending-keys {
+      position: fixed;
+      bottom: 50px;
+      right: 16px;
+      background: rgba(0,0,0,0.8);
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      color: #fbbf24;
+    }
+
+    /* Column numbers */
+    .column-number {
+      position: absolute;
+      top: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    .column {
+      position: relative;
+    }
+
+    /* Archive button */
+    .archive-btn {
+      background: rgba(255,255,255,0.05);
+      color: #888;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+
+    .archive-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    .archive-btn.active {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: #8b5cf6;
+      color: #8b5cf6;
+    }
+
+    /* Archived section */
+    .archived-section {
+      display: none;
+      padding: 16px 24px;
+      background: rgba(139, 92, 246, 0.05);
+      border-top: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    .archived-section.visible {
+      display: block;
+    }
+
+    .archived-section h3 {
+      color: #8b5cf6;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .archived-tasks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .archived-task {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      color: #888;
+      max-width: 280px;
+      position: relative;
+    }
+
+    .archived-task .task-title {
+      color: #aaa;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .archived-task .task-meta {
+      font-size: 0.7rem;
+      color: #666;
+    }
+
+    .archived-task .unarchive-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .archived-task:hover .unarchive-btn {
+      opacity: 1;
+    }
+
+    .archived-task .unarchive-btn:hover {
+      color: #8b5cf6;
+    }
+
+    .archive-settings {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    .archive-settings select {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #aaa;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    .archive-settings button {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .archive-settings button:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* Column Management Styles */
+    .column-drag-handle {
+      cursor: grab;
+      opacity: 0;
+      transition: opacity 0.2s;
+      padding: 0 8px;
+      color: #888;
+      user-select: none;
+    }
+
+    .column-header:hover .column-drag-handle {
+      opacity: 1;
+    }
+
+    .column-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .column-title {
+      cursor: pointer;
+      flex: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .column-title:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .column-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .column-header:hover .column-actions {
+      opacity: 1;
+    }
+
+    .column-action-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #888;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .column-action-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .column-action-btn.delete:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .add-column-placeholder {
+      background: rgba(255, 255, 255, 0.02);
+      border: 2px dashed rgba(0, 212, 255, 0.3);
+      border-radius: 12px;
+      min-width: 300px;
+      max-width: 300px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .add-column-placeholder:hover {
+      border-color: rgba(0, 212, 255, 0.6);
+      background: rgba(0, 212, 255, 0.05);
+    }
+
+    .add-column-placeholder button {
+      background: transparent;
+      border: none;
+      color: #00d4ff;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 12px 24px;
+    }
+
+    .column-title-edit {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid #00d4ff;
+      color: #e4e4e4;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-weight: 600;
+      width: 100%;
+      outline: none;
+    }
+
+    .dragging-column {
+      opacity: 0.5;
+    }
+
+    .column-drop-indicator {
+      width: 4px;
+      background: #00d4ff;
+      border-radius: 2px;
+      min-height: 400px;
+      transition: all 0.2s;
+    }
+
+    /* Multi-Board Tabs */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 24px;
+      background: rgba(0, 0, 0, 0.2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      overflow-x: auto;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+      color: #aaa;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .tab:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .tab.active {
+      background: rgba(0, 212, 255, 0.2);
+      border-color: #00d4ff;
+      color: #00d4ff;
+      font-weight: 600;
+    }
+
+    .tab-close {
+      display: none;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+
+    .tab:hover .tab-close {
+      display: inline-block;
+    }
+
+    .tab-close:hover {
+      opacity: 1;
+    }
+
+    .add-tab-btn {
+      padding: 6px 14px;
+      background: transparent;
+      border: 1px dashed rgba(0, 212, 255, 0.4);
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #00d4ff;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .add-tab-btn:hover {
+      background: rgba(0, 212, 255, 0.1);
+      border-color: #00d4ff;
+    }
+
+    /* Board picker modal */
+    .board-picker-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .board-picker-item {
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .board-picker-item:hover {
+      background: rgba(0, 212, 255, 0.1);
+      border-color: #00d4ff;
+    }
+
+    .board-picker-item.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .board-picker-item.disabled:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .create-board-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* ============================================
+       MOBILE RESPONSIVE STYLES
+       ============================================ */
+    
+    @media (max-width: 768px) {
+      /* Header - compact */
+      header {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      h1 {
+        font-size: 1.2rem;
+      }
+
+      h1 img {
+        width: 24px;
+        height: 24px;
+      }
+
+      .status {
+        font-size: 0.75rem;
+        gap: 8px;
+      }
+
+      .stats-bar {
+        display: none; /* Hide on mobile - too cluttered */
+      }
+
+      /* Tab bar - horizontal scroll */
+      .tab-bar {
+        padding: 8px 12px;
+        gap: 8px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .tab {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+      }
+
+      /* Controls - stack vertically */
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+
+      .filter-group {
+        justify-content: space-between;
+        padding: 10px 12px;
+      }
+
+      .focus-btn, .archive-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 12px;
+      }
+
+      /* Board - horizontal scroll with snap */
+      .board {
+        padding: 16px 12px;
+        gap: 12px;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        scroll-padding: 12px;
+      }
+
+      /* Columns - full width snap points */
+      .column {
+        min-width: calc(100vw - 40px);
+        max-width: calc(100vw - 40px);
+        scroll-snap-align: center;
+        flex-shrink: 0;
+      }
+
+      .column-header {
+        padding: 14px 12px;
+        position: sticky;
+        top: 0;
+        background: rgba(26, 26, 46, 0.95);
+        z-index: 10;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
+      .column-title {
+        font-size: 1rem;
+      }
+
+      .column-number {
+        display: none; /* Hide vim column numbers on mobile */
+      }
+
+      .column-drag-handle {
+        display: none; /* No column dragging on mobile */
+      }
+
+      .column-actions {
+        opacity: 1; /* Always show on mobile */
+      }
+
+      /* Tasks - larger touch targets */
+      .task {
+        padding: 16px;
+        margin-bottom: 12px;
+        border-left-width: 4px;
+        touch-action: pan-y;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .task-title {
+        font-size: 1rem;
+        margin-bottom: 8px;
+      }
+
+      .task-description {
+        font-size: 0.9rem;
+      }
+
+      .task-meta {
+        font-size: 0.8rem;
+        margin-top: 12px;
+      }
+
+      /* Task actions always visible on mobile */
+      .task-actions {
+        opacity: 1;
+      }
+
+      .task-actions button {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+      }
+
+      .task-tags .tag-pill {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+      }
+
+      .priority-badge {
+        font-size: 0.75rem;
+        padding: 3px 10px;
+      }
+
+      /* Add task button - larger */
+      .add-task button {
+        padding: 14px;
+        font-size: 1rem;
+      }
+
+      /* Modal - full screen on mobile */
+      .modal-content {
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .modal h2 {
+        font-size: 1.3rem;
+        position: sticky;
+        top: 0;
+        background: #1a1a2e;
+        padding: 10px 0;
+        margin: -20px -20px 16px -20px;
+        padding: 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+      }
+
+      .modal input, .modal textarea, .modal select {
+        padding: 14px;
+        font-size: 16px; /* Prevents iOS zoom */
+        border-radius: 10px;
+      }
+
+      .modal textarea {
+        min-height: 120px;
+      }
+
+      .modal-actions {
+        position: sticky;
+        bottom: 0;
+        background: #1a1a2e;
+        padding: 16px 0;
+        margin: auto -20px -20px -20px;
+        padding: 16px 20px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        gap: 12px;
+      }
+
+      .modal-actions button {
+        flex: 1;
+        padding: 14px;
+        font-size: 1rem;
+      }
+
+      .tags-container {
+        padding: 12px;
+        min-height: 50px;
+      }
+
+      .tag-input {
+        font-size: 16px; /* Prevents iOS zoom */
+      }
+
+      /* Comments section */
+      .comments-section {
+        margin-top: 20px;
+      }
+
+      .comments-list {
+        max-height: 200px;
+      }
+
+      .comment {
+        padding: 14px;
+      }
+
+      .add-comment-input {
+        font-size: 13px;
+        padding: 6px;
+        min-height: 32px;
+      }
+
+      /* Vim mode - hide on mobile */
+      .vim-mode,
+      .pending-keys,
+      .vim-command-bar,
+      .keyboard-hint {
+        display: none !important;
+      }
+
+      /* Archived section */
+      .archived-section {
+        padding: 16px;
+      }
+
+      .archived-tasks {
+        flex-direction: column;
+      }
+
+      .archived-task {
+        max-width: 100%;
+      }
+
+      /* Hotkeys modal - scrollable */
+      #hotkeysModal .modal-content {
+        padding: 16px;
+      }
+
+      #hotkeysModal .modal-content > div {
+        grid-template-columns: 1fr;
+      }
+
+      /* Column indicator for mobile */
+      .mobile-column-indicator {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(0,0,0,0.3);
+      }
+
+      .mobile-column-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.3);
+        transition: all 0.2s;
+      }
+
+      .mobile-column-dot.active {
+        background: #00d4ff;
+        transform: scale(1.3);
+      }
+    }
+
+    /* Extra small screens */
+    @media (max-width: 380px) {
+      header {
+        padding: 10px 12px;
+      }
+
+      h1 {
+        font-size: 1rem;
+      }
+
+      .column {
+        min-width: calc(100vw - 24px);
+        max-width: calc(100vw - 24px);
+      }
+
+      .board {
+        padding: 12px 8px;
+      }
+    }
+
+    /* Touch-specific improvements */
+    @media (pointer: coarse) {
+      .task {
+        /* Larger touch target */
+        min-height: 60px;
+      }
+
+      .task-actions button {
+        min-width: 44px;
+        min-height: 44px;
+      }
+
+      /* Swipe hint animation */
+      .board::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 50%;
+        width: 30px;
+        height: 60px;
+        background: linear-gradient(to left, rgba(0,212,255,0.1), transparent);
+        pointer-events: none;
+        animation: swipeHint 2s ease-in-out infinite;
+        opacity: 0;
+      }
+
+      @keyframes swipeHint {
+        0%, 100% { opacity: 0; transform: translateX(0); }
+        50% { opacity: 1; transform: translateX(-10px); }
+      }
+
+      /* Show drag affordance */
+      .task::before {
+        content: '⋮⋮';
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: rgba(255,255,255,0.2);
+        font-size: 12px;
+        letter-spacing: -2px;
+      }
+
+      .task {
+        position: relative;
+        padding-left: 28px;
+      }
+    }
+
+    /* Landscape phone */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .board {
+        min-height: calc(100vh - 120px);
+      }
+
+      .column {
+        min-width: 280px;
+        max-width: 280px;
+      }
+
+      .modal-content {
+        height: auto;
+        max-height: 95vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><img src="/icon-192.png" alt="Robot icon"> Kanban</h1>
+    <div class="stats-bar" id="statsBar"></div>
+    <div class="status">
+      <span class="status-dot"></span>
+      <span>Last sync: <span id="lastUpdated">—</span></span>
+      <button onclick="showKeyboardHelp()" style="background:rgba(255,255,255,0.1);color:#00d4ff;border:1px solid rgba(0,212,255,0.3);padding:6px 12px;border-radius:6px;cursor:pointer;margin-right:8px;" title="Keyboard shortcuts (?)">⌨️</button>
+      <button onclick="loadBoard()" style="background:#00d4ff;color:#1a1a2e;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">↻ Refresh</button>
+    </div>
+  </header>
+
+  <div class="tab-bar" id="tabBar"></div>
+
+  <div style="padding: 12px 24px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1);">
+    <div class="controls">
+      <div class="filter-input-container" onclick="document.getElementById('unifiedFilterInput').focus()">
+        <div id="filterPills"></div>
+        <input type="text" id="unifiedFilterInput" placeholder="Filter... (tag: to filter by tag)" oninput="updateFilterAutocomplete()" onkeydown="handleFilterInput(event)" onblur="hideFilterAutocomplete()">
+        <div id="filterAutocomplete" class="tag-autocomplete"></div>
+      </div>
+      <div class="filter-group">
+        <label>Sort:</label>
+        <select id="sortBy" onchange="applyFiltersAndSort()">
+          <option value="priority">Priority</option>
+          <option value="urgency">Urgency</option>
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Priority:</label>
+        <select id="filterPriority" onchange="applyFiltersAndSort()">
+          <option value="">All</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Urgency:</label>
+        <select id="filterUrgency" onchange="applyFiltersAndSort()">
+          <option value="">All</option>
+          <option value="overdue">Overdue</option>
+          <option value="today">Today</option>
+          <option value="tomorrow">Tomorrow</option>
+          <option value="week">This Week</option>
+          <option value="has-due">Has Due Date</option>
+        </select>
+      </div>
+      <button class="clear-filters" onclick="clearFilters()">Clear Filters</button>
+      <button class="focus-btn" id="focusBtn" onclick="toggleFocusMode()">🎯 Focus Mode</button>
+      <button class="archive-btn" id="archiveBtn" onclick="toggleArchiveView()">📦 Show Archived (<span id="archiveCount">0</span>)</button>
+    </div>
+  </div>
+
+  <div class="todays-focus-panel" id="todaysFocusPanel">
+    <div class="todays-focus-header">
+      <h3>⭐ Today's Focus <span class="focus-count" id="focusCount">0/3</span></h3>
+      <button class="clear-focus-btn" onclick="clearTodaysFocus()">Clear All</button>
+    </div>
+    <div class="todays-focus-tasks" id="todaysFocusTasks"></div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="archived-section" id="archivedSection">
+    <h3>📦 Archived Tasks</h3>
+    <div class="archived-tasks" id="archivedTasks"></div>
+    <div class="archive-settings">
+      <span>Auto-archive after:</span>
+      <select id="archiveDays" onchange="updateArchiveDays()">
+        <option value="3">3 days</option>
+        <option value="7" selected>7 days</option>
+        <option value="14">14 days</option>
+        <option value="30">30 days</option>
+        <option value="0">Never</option>
+      </select>
+      <button onclick="clearArchive()">Clear All Archived</button>
+    </div>
+  </div>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <div class="vim-mode" id="vimMode">NORMAL</div>
+  <div class="pending-keys" id="pendingKeys" style="display:none;"></div>
+
+  <div class="vim-command-bar" id="vimCommandBar">
+    <span class="prompt">:</span>
+    <input type="text" id="vimCommandInput" onkeydown="handleVimCommand(event)">
+  </div>
+  
+  <div class="modal" id="taskModal">
+    <div class="modal-content">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+        <h2 id="modalTitle" style="margin: 0;">Add Task</h2>
+        <button id="modalStarBtn" class="star-btn" style="display: none; font-size: 20px; padding: 4px 8px;" onclick="toggleModalTaskFocus(event)" title="Add to Today's Focus">☆</button>
+      </div>
+      <label for="taskTitle">Title</label>
+      <input type="text" id="taskTitle" placeholder="Task title">
+      <label for="taskPriority">Priority</label>
+      <select id="taskPriority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+      <label for="taskDueDate">Due Date (optional)</label>
+      <input type="date" id="taskDueDate">
+      <label>Tags</label>
+      <div class="tags-container" id="tagsContainer" onclick="focusTagInput()">
+        <input type="text"
+               id="tagInput"
+               class="tag-input"
+               placeholder="Type tag and press Enter or Tab"
+               onkeydown="handleTagInput(event)"
+               oninput="updateTagAutocomplete()">
+        <div class="tag-autocomplete" id="tagAutocomplete"></div>
+      </div>
+      <label for="taskDesc">Description (optional)</label>
+      <textarea id="taskDesc" placeholder="Description (optional)"></textarea>
+
+      <div class="comments-section">
+        <label>Comments</label>
+        <div class="comments-list" id="commentsList"></div>
+        <div class="add-comment-section">
+          <div class="add-comment-author">
+            <input type="text" id="commentAuthor" placeholder="Your name (User/LLM)" value="User">
+          </div>
+          <textarea id="newComment" class="add-comment-input" placeholder="Add a comment... (Markdown supported)"></textarea>
+          <button class="add-comment-btn" onclick="addComment()">Add Comment</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveTask()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="boardPickerModal">
+    <div class="modal-content">
+      <h2>Open Board</h2>
+      <div class="board-picker-list" id="boardPickerList"></div>
+      <div class="create-board-section">
+        <label for="newBoardTitle">Create New Board</label>
+        <input type="text" id="newBoardTitle" placeholder="New board name">
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="closeBoardPicker()">Cancel</button>
+          <button class="btn-primary" onclick="createNewBoard()">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="hotkeysModal">
+    <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <h2 style="margin-bottom: 20px; color: #00d4ff;">⌨️ Keyboard Shortcuts</h2>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div>
+          <h3 style="color: #00d4ff; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Tabs</h3>
+          <table style="width: 100%; margin-bottom: 20px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Ctrl+Tab</kbd></td><td style="padding: 6px 0;">Next tab</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Ctrl+Shift+Tab</kbd></td><td style="padding: 6px 0;">Previous tab</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Ctrl+t</kbd></td><td style="padding: 6px 0;">Open board picker</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Ctrl+w</kbd></td><td style="padding: 6px 0;">Close current tab</td></tr>
+          </table>
+
+          <h3 style="color: #00d4ff; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Navigation</h3>
+          <table style="width: 100%; margin-bottom: 20px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">h</kbd> / <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">l</kbd></td><td style="padding: 6px 0;">Move between columns</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">j</kbd> / <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">k</kbd></td><td style="padding: 6px 0;">Move up/down in column</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">1-9</kbd></td><td style="padding: 6px 0;">Jump to column by number</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">gg</kbd></td><td style="padding: 6px 0;">Go to first task</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">G</kbd></td><td style="padding: 6px 0;">Go to last task</td></tr>
+          </table>
+
+          <h3 style="color: #00d4ff; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Actions</h3>
+          <table style="width: 100%; margin-bottom: 20px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Enter</kbd></td><td style="padding: 6px 0;">Edit selected task</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">o</kbd></td><td style="padding: 6px 0;">New task in current column</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">O</kbd></td><td style="padding: 6px 0;">New task in backlog</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Space</kbd></td><td style="padding: 6px 0;">Quick complete (move to done)</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">x</kbd> or <kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">dd</kbd></td><td style="padding: 6px 0;">Delete task</td></tr>
+          </table>
+        </div>
+
+        <div>
+          <h3 style="color: #00d4ff; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Move Task</h3>
+          <table style="width: 100%; margin-bottom: 20px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">m1-9</kbd></td><td style="padding: 6px 0;">Move to column by number (m1=first, m2=second, etc.)</td></tr>
+          </table>
+
+          <h3 style="color: #00d4ff; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Vim Commands</h3>
+          <table style="width: 100%; margin-bottom: 20px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:</kbd></td><td style="padding: 6px 0;">Open command mode</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:help</kbd></td><td style="padding: 6px 0;">Show this help</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:new</kbd></td><td style="padding: 6px 0;">New task</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:done</kbd></td><td style="padding: 6px 0;">Complete task</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:focus</kbd></td><td style="padding: 6px 0;">Toggle focus mode</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:q</kbd></td><td style="padding: 6px 0;">Close modal</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:w</kbd></td><td style="padding: 6px 0;">Save task</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">:wq</kbd></td><td style="padding: 6px 0;">Save and close</td></tr>
+          </table>
+
+          <h3 style="color: #00d4ff; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Other</h3>
+          <table style="width: 100%; margin-bottom: 20px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">s</kbd></td><td style="padding: 6px 0;">⭐ Star task (Today's Focus)</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">f</kbd></td><td style="padding: 6px 0;">Toggle focus mode</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">a</kbd></td><td style="padding: 6px 0;">Toggle archived tasks</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">r</kbd></td><td style="padding: 6px 0;">Refresh board</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">?</kbd></td><td style="padding: 6px 0;">Show this help</td></tr>
+            <tr><td style="padding: 6px 0; color: #888;"><kbd style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace;">Esc</kbd></td><td style="padding: 6px 0;">Close modal / cancel</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button class="btn-primary" onclick="closeHotkeysModal()">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    let boardData = null;
+    let currentBoardId = 'default';
+    let openTabs = []; // Array of board IDs currently open
+    let modalColumnId = null;
+    let editingTaskId = null;
+    let currentTags = [];
+    let filters = {
+      priority: '',
+      urgency: '',
+      tags: [],
+      sort: 'priority',
+      search: ''
+    };
+    
+    // ============================================
+    // TAB MANAGEMENT
+    // ============================================
+
+    function loadTabState() {
+      const saved = localStorage.getItem('kanban-tabs');
+      if (saved) {
+        try {
+          const state = JSON.parse(saved);
+          openTabs = state.openTabs || [];
+          currentBoardId = state.currentBoardId || 'default';
+        } catch (err) {
+          console.error('Failed to load tab state:', err);
+          openTabs = [];
+          currentBoardId = 'default';
+        }
+      }
+
+      // Ensure at least one tab is open
+      if (openTabs.length === 0) {
+        openTabs = ['default'];
+      }
+
+      // Ensure current board is in open tabs
+      if (!openTabs.includes(currentBoardId)) {
+        currentBoardId = openTabs[0];
+      }
+    }
+
+    function saveTabState() {
+      localStorage.setItem('kanban-tabs', JSON.stringify({
+        openTabs,
+        currentBoardId
+      }));
+    }
+
+    function renderTabs() {
+      if (!boardData) return;
+
+      const container = document.getElementById('tabBar');
+      const tabsHtml = openTabs.map(boardId => {
+        const board = boardData.boards.find(b => b.id === boardId);
+        if (!board) return '';
+
+        const isActive = boardId === currentBoardId;
+        const showClose = openTabs.length > 1;
+
+        return `
+          <div class="tab ${isActive ? 'active' : ''}" onclick="switchToBoard('${boardId}')">
+            <span>${escapeHtml(board.title)}</span>
+            ${showClose ? `<button class="tab-close" onclick="closeTab(event, '${boardId}')">×</button>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = tabsHtml + `
+        <button class="add-tab-btn" onclick="showBoardPicker()">+ Add Tab</button>
+      `;
+    }
+
+    function switchToBoard(boardId) {
+      if (boardId === currentBoardId) return;
+
+      currentBoardId = boardId;
+      saveTabState();
+
+      // Reset vim selection for new board
+      selectedColumnIndex = 0;
+      selectedTaskIndex = -1;
+
+      renderTabs();
+      renderFilterPills();
+      updateStatsBar();
+      updateArchiveCount();
+      renderBoard();
+      renderTodaysFocus();
+      updateSelection();
+      if (showArchived) {
+        renderArchivedTasks();
+      }
+    }
+
+    function closeTab(event, boardId) {
+      event.stopPropagation();
+
+      // Prevent closing last tab
+      if (openTabs.length <= 1) {
+        alert('Cannot close the last tab');
+        return;
+      }
+
+      // Remove from open tabs
+      openTabs = openTabs.filter(id => id !== boardId);
+
+      // If closing current tab, switch to another
+      if (boardId === currentBoardId) {
+        const index = openTabs.indexOf(boardId);
+        currentBoardId = openTabs[Math.max(0, index - 1)] || openTabs[0];
+      }
+
+      saveTabState();
+      switchToBoard(currentBoardId);
+    }
+
+    function openTab(boardId) {
+      if (openTabs.includes(boardId)) {
+        // Tab already open, just switch to it
+        switchToBoard(boardId);
+        return;
+      }
+
+      openTabs.push(boardId);
+      saveTabState();
+      switchToBoard(boardId);
+    }
+
+    function showBoardPicker() {
+      if (!boardData) return;
+
+      const modal = document.getElementById('boardPickerModal');
+      const list = document.getElementById('boardPickerList');
+
+      list.innerHTML = boardData.boards.map(board => {
+        const isOpen = openTabs.includes(board.id);
+        return `
+          <div class="board-picker-item ${isOpen ? 'disabled' : ''}"
+               onclick="${isOpen ? '' : `openTab('${board.id}'); closeBoardPicker();`}">
+            <span>${escapeHtml(board.title)}</span>
+            ${isOpen ? '<span style="color: #666;">Already open</span>' : ''}
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('newBoardTitle').value = '';
+      modal.classList.add('active');
+      document.getElementById('newBoardTitle').focus();
+    }
+
+    function closeBoardPicker() {
+      document.getElementById('boardPickerModal').classList.remove('active');
+    }
+
+    async function createNewBoard() {
+      const title = document.getElementById('newBoardTitle').value.trim();
+
+      if (!title) {
+        alert('Please enter a board name');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API}/api/board`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(error.error || 'Failed to create board');
+          return;
+        }
+
+        const result = await response.json();
+        closeBoardPicker();
+
+        // Reload board data and open new board
+        await loadBoard();
+        openTab(result.board.id);
+      } catch (err) {
+        console.error('Create board failed:', err);
+        alert('Failed to create board');
+      }
+    }
+
+    function cycleTab(direction) {
+      const currentIndex = openTabs.indexOf(currentBoardId);
+      const nextIndex = (currentIndex + direction + openTabs.length) % openTabs.length;
+      switchToBoard(openTabs[nextIndex]);
+    }
+
+    // ============================================
+    // BOARD LOADING
+    // ============================================
+
+    async function loadBoard() {
+      try {
+        const res = await fetch(`${API}/api/tasks`);
+        boardData = await res.json();
+
+        // Load tab state on first load
+        if (openTabs.length === 0) {
+          loadTabState();
+        }
+
+        document.getElementById('lastUpdated').textContent =
+          new Date(boardData.lastUpdated).toLocaleTimeString();
+
+        renderTabs();
+        renderFilterPills();
+        updateStatsBar();
+        updateArchiveCount();
+        renderBoard();
+        renderTodaysFocus();
+        updateSelection();
+        if (showArchived) {
+          renderArchivedTasks();
+        }
+      } catch (err) {
+        console.error('Failed to load:', err);
+      }
+    }
+
+    // Tag management
+    let selectedAutocompleteIndex = -1;
+
+    function handleTagInput(event) {
+      const autocomplete = document.getElementById('tagAutocomplete');
+      const items = autocomplete.querySelectorAll('.tag-autocomplete-item');
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedAutocompleteIndex = Math.min(selectedAutocompleteIndex + 1, items.length - 1);
+        updateAutocompleteSelection();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectedAutocompleteIndex = Math.max(selectedAutocompleteIndex - 1, -1);
+        updateAutocompleteSelection();
+      } else if (event.key === 'Tab') {
+        event.preventDefault();
+        // Select highlighted item, or first match, or add as-is
+        if (selectedAutocompleteIndex >= 0 && items[selectedAutocompleteIndex]) {
+          selectTagSuggestion(items[selectedAutocompleteIndex].dataset.tag);
+        } else if (items.length > 0) {
+          selectTagSuggestion(items[0].dataset.tag);
+        } else {
+          addTag();
+        }
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (selectedAutocompleteIndex >= 0 && items[selectedAutocompleteIndex]) {
+          selectTagSuggestion(items[selectedAutocompleteIndex].dataset.tag);
+        } else {
+          addTag();
+        }
+      } else if (event.key === 'Escape') {
+        hideTagAutocomplete();
+      }
+    }
+
+    function updateAutocompleteSelection() {
+      const items = document.querySelectorAll('.tag-autocomplete-item');
+      items.forEach((item, i) => {
+        item.classList.toggle('selected', i === selectedAutocompleteIndex);
+      });
+    }
+
+    function updateTagAutocomplete() {
+      const input = document.getElementById('tagInput');
+      const autocomplete = document.getElementById('tagAutocomplete');
+      const query = input.value.trim().toLowerCase();
+
+      if (!query) {
+        hideTagAutocomplete();
+        return;
+      }
+
+      const allTags = getAllTags();
+      const matches = allTags
+        .filter(tag => tag.includes(query) && !currentTags.includes(tag))
+        .slice(0, 8);
+
+      if (matches.length === 0) {
+        hideTagAutocomplete();
+        return;
+      }
+
+      // Sort: exact start matches first, then contains
+      matches.sort((a, b) => {
+        const aStarts = a.startsWith(query) ? 0 : 1;
+        const bStarts = b.startsWith(query) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+        return a.localeCompare(b);
+      });
+
+      autocomplete.innerHTML = matches.map(tag => {
+        const idx = tag.indexOf(query);
+        const highlighted = tag.substring(0, idx) +
+          `<span class="match">${tag.substring(idx, idx + query.length)}</span>` +
+          tag.substring(idx + query.length);
+        return `<div class="tag-autocomplete-item" data-tag="${escapeHtml(tag)}" onmousedown="selectTagSuggestion('${escapeHtml(tag)}')">${highlighted}</div>`;
+      }).join('');
+
+      autocomplete.classList.add('visible');
+      selectedAutocompleteIndex = -1;
+    }
+
+    function hideTagAutocomplete() {
+      const autocomplete = document.getElementById('tagAutocomplete');
+      autocomplete.classList.remove('visible');
+      selectedAutocompleteIndex = -1;
+    }
+
+    function selectTagSuggestion(tag) {
+      if (tag && !currentTags.includes(tag)) {
+        currentTags.push(tag);
+        document.getElementById('tagInput').value = '';
+        renderTags();
+      }
+      hideTagAutocomplete();
+    }
+
+    function addTag() {
+      const input = document.getElementById('tagInput');
+      const tag = input.value.trim().toLowerCase();
+      if (tag && !currentTags.includes(tag)) {
+        currentTags.push(tag);
+        input.value = '';
+        renderTags();
+      }
+      hideTagAutocomplete();
+    }
+
+    function removeTag(tag) {
+      currentTags = currentTags.filter(t => t !== tag);
+      renderTags();
+    }
+
+    function renderTags() {
+      const container = document.getElementById('tagsContainer');
+      const input = document.getElementById('tagInput');
+      const autocomplete = document.getElementById('tagAutocomplete');
+
+      container.innerHTML = '';
+      currentTags.forEach(tag => {
+        const pill = document.createElement('div');
+        pill.className = 'tag-pill';
+        pill.innerHTML = `${escapeHtml(tag)}<button onclick="removeTag('${escapeHtml(tag)}')">×</button>`;
+        container.appendChild(pill);
+      });
+      container.appendChild(input);
+      container.appendChild(autocomplete);
+    }
+
+    function focusTagInput() {
+      document.getElementById('tagInput').focus();
+    }
+
+    // Collect all unique tags from all tasks
+    function getAllTags() {
+      const tags = new Set();
+      if (!boardData) return [];
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return [];
+
+      board.columns.forEach(col => {
+        col.tasks.forEach(task => {
+          if (task.tags && Array.isArray(task.tags)) {
+            task.tags.forEach(tag => tags.add(tag));
+          }
+        });
+      });
+
+      return Array.from(tags).sort();
+    }
+
+    let filterAutocompleteIndex = -1;
+
+    function handleFilterInput(event) {
+      const autocomplete = document.getElementById('filterAutocomplete');
+      const items = autocomplete.querySelectorAll('.tag-autocomplete-item');
+      const input = document.getElementById('unifiedFilterInput');
+      const isAutocompleteVisible = autocomplete.classList.contains('visible');
+
+      if (isAutocompleteVisible && items.length > 0) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          filterAutocompleteIndex = Math.min(filterAutocompleteIndex + 1, items.length - 1);
+          updateFilterAutocompleteSelection();
+          return;
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          filterAutocompleteIndex = Math.max(filterAutocompleteIndex - 1, -1);
+          updateFilterAutocompleteSelection();
+          return;
+        } else if (event.key === 'Tab' || event.key === 'Enter') {
+          event.preventDefault();
+          if (filterAutocompleteIndex >= 0 && filterAutocompleteIndex < items.length) {
+            selectFilterTag(items[filterAutocompleteIndex].dataset.tag);
+          } else if (items.length > 0) {
+            selectFilterTag(items[0].dataset.tag);
+          }
+          return;
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          hideFilterAutocomplete();
+          return;
+        }
+      }
+
+      if (event.key === 'Backspace' && input.selectionStart === 0 && input.selectionEnd === 0 && filters.tags.length > 0) {
+        removeFilterTag(filters.tags[filters.tags.length - 1]);
+      }
+    }
+
+    function updateFilterAutocomplete() {
+      const input = document.getElementById('unifiedFilterInput');
+      const value = input.value;
+      const tagMatch = value.match(/tag:(\S*)$/);
+
+      if (tagMatch) {
+        const query = tagMatch[1].toLowerCase();
+        const allTags = getAllTags();
+        const matches = allTags
+          .filter(tag => tag.toLowerCase().includes(query) && !filters.tags.includes(tag))
+          .slice(0, 8);
+
+        if (matches.length === 0) {
+          hideFilterAutocomplete();
+        } else {
+          matches.sort((a, b) => {
+            const aStarts = a.toLowerCase().startsWith(query) ? 0 : 1;
+            const bStarts = b.toLowerCase().startsWith(query) ? 0 : 1;
+            if (aStarts !== bStarts) return aStarts - bStarts;
+            return a.localeCompare(b);
+          });
+
+          const autocomplete = document.getElementById('filterAutocomplete');
+          autocomplete.innerHTML = matches.map(tag => {
+            if (query) {
+              const idx = tag.toLowerCase().indexOf(query);
+              const highlighted = escapeHtml(tag.substring(0, idx)) +
+                `<span class="match">${escapeHtml(tag.substring(idx, idx + query.length))}</span>` +
+                escapeHtml(tag.substring(idx + query.length));
+              return `<div class="tag-autocomplete-item" data-tag="${escapeHtml(tag)}" onmousedown="selectFilterTag('${escapeHtml(tag)}')">${highlighted}</div>`;
+            }
+            return `<div class="tag-autocomplete-item" data-tag="${escapeHtml(tag)}" onmousedown="selectFilterTag('${escapeHtml(tag)}')">${escapeHtml(tag)}</div>`;
+          }).join('');
+          autocomplete.classList.add('visible');
+          filterAutocompleteIndex = -1;
+        }
+      } else {
+        hideFilterAutocomplete();
+      }
+
+      applyFiltersAndSort();
+    }
+
+    function updateFilterAutocompleteSelection() {
+      const items = document.getElementById('filterAutocomplete').querySelectorAll('.tag-autocomplete-item');
+      items.forEach((item, i) => {
+        item.classList.toggle('selected', i === filterAutocompleteIndex);
+      });
+    }
+
+    function hideFilterAutocomplete() {
+      document.getElementById('filterAutocomplete').classList.remove('visible');
+      filterAutocompleteIndex = -1;
+    }
+
+    function selectFilterTag(tag) {
+      if (!tag || filters.tags.includes(tag)) return;
+      filters.tags.push(tag);
+      const input = document.getElementById('unifiedFilterInput');
+      input.value = input.value.replace(/tag:\S*$/, '').trim();
+      renderFilterPills();
+      hideFilterAutocomplete();
+      applyFiltersAndSort();
+      input.focus();
+    }
+
+    function removeFilterTag(tag) {
+      filters.tags = filters.tags.filter(t => t !== tag);
+      renderFilterPills();
+      applyFiltersAndSort();
+    }
+
+    function renderFilterPills() {
+      const container = document.getElementById('filterPills');
+      container.innerHTML = filters.tags.map(tag =>
+        `<div class="tag-pill">${escapeHtml(tag)}<button onclick="removeFilterTag('${escapeHtml(tag)}')">×</button></div>`
+      ).join('');
+    }
+
+    function applyFiltersAndSort() {
+      filters.priority = document.getElementById('filterPriority').value;
+      filters.urgency = document.getElementById('filterUrgency').value;
+      filters.sort = document.getElementById('sortBy').value;
+      const inputValue = document.getElementById('unifiedFilterInput').value;
+      filters.search = inputValue.replace(/tag:\S*$/, '').trim().toLowerCase();
+      renderBoard();
+    }
+
+    function clearFilters() {
+      filters.priority = '';
+      filters.urgency = '';
+      filters.tags = [];
+      filters.sort = 'priority';
+      filters.search = '';
+      document.getElementById('filterPriority').value = '';
+      document.getElementById('filterUrgency').value = '';
+      document.getElementById('sortBy').value = 'priority';
+      document.getElementById('unifiedFilterInput').value = '';
+      renderFilterPills();
+      hideFilterAutocomplete();
+      renderBoard();
+    }
+    
+    function renderBoard() {
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return;
+
+      const container = document.getElementById('board');
+      container.innerHTML = board.columns.map((col, colIndex) => {
+        // Apply filters - use visible done tasks for done column (excludes archived)
+        let filteredTasks = col.id === 'done' ? getVisibleDoneTasks() : [...col.tasks];
+
+        // Focus mode: only show critical/high priority OR starred tasks in non-done columns
+        if (focusMode && col.id !== 'done') {
+          filteredTasks = filteredTasks.filter(task =>
+            task.priority === 'critical' || task.priority === 'high' || isTaskFocused(task.id)
+          );
+        }
+
+        // Filter by priority
+        if (filters.priority) {
+          filteredTasks = filteredTasks.filter(task =>
+            (task.priority || 'medium') === filters.priority
+          );
+        }
+
+        // Filter by urgency
+        if (filters.urgency) {
+          filteredTasks = filteredTasks.filter(task => {
+            const urgency = getUrgency(task.dueDate);
+            if (filters.urgency === 'has-due') return !!task.dueDate;
+            if (filters.urgency === 'week') {
+              // "This Week" includes overdue, today, tomorrow, and within 7 days
+              return urgency !== null;
+            }
+            return urgency && urgency.level === filters.urgency;
+          });
+        }
+
+        // Filter by tags
+        if (filters.tags.length > 0) {
+          filteredTasks = filteredTasks.filter(task => {
+            if (!task.tags || !Array.isArray(task.tags)) return false;
+            return filters.tags.every(filterTag => task.tags.includes(filterTag));
+          });
+        }
+
+        // Filter by search text
+        if (filters.search) {
+          filteredTasks = filteredTasks.filter(task => {
+            const searchText = filters.search;
+            // Search in title
+            if (task.title && task.title.toLowerCase().includes(searchText)) return true;
+            // Search in description
+            if (task.description && task.description.toLowerCase().includes(searchText)) return true;
+            // Search in tags
+            if (task.tags && task.tags.some(tag => tag.toLowerCase().includes(searchText))) return true;
+            // Search in comments
+            if (task.comments && task.comments.some(c => c.text && c.text.toLowerCase().includes(searchText))) return true;
+            return false;
+          });
+        }
+
+        // Sort tasks (starred tasks always come first)
+        const sortedTasks = [...filteredTasks].sort((a, b) => {
+          // Starred tasks always come first
+          const aStarred = isTaskFocused(a.id) ? 0 : 1;
+          const bStarred = isTaskFocused(b.id) ? 0 : 1;
+          if (aStarred !== bStarred) return aStarred - bStarred;
+
+          if (filters.sort === 'priority') {
+            const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            const aPriority = priorityOrder[a.priority] ?? 2;
+            const bPriority = priorityOrder[b.priority] ?? 2;
+            return aPriority - bPriority;
+          } else if (filters.sort === 'urgency') {
+            const urgencyOrder = { overdue: 0, today: 1, tomorrow: 2, week: 3 };
+            const aUrgency = getUrgency(a.dueDate);
+            const bUrgency = getUrgency(b.dueDate);
+            const aOrder = aUrgency ? urgencyOrder[aUrgency.level] ?? 4 : 5;
+            const bOrder = bUrgency ? urgencyOrder[bUrgency.level] ?? 4 : 5;
+            return aOrder - bOrder;
+          } else if (filters.sort === 'newest') {
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          } else if (filters.sort === 'oldest') {
+            return new Date(a.createdAt) - new Date(b.createdAt);
+          }
+          return 0;
+        });
+
+        return `
+        <div class="column ${col.id}" data-column-id="${col.id}">
+          <span class="column-number">${colIndex + 1}</span>
+          <div class="column-header"
+               draggable="true"
+               ondragstart="onColumnDragStart(event, '${col.id}')"
+               ondragend="onColumnDragEnd(event)"
+               ondragover="onColumnDragOver(event)"
+               ondrop="onColumnDrop(event, '${col.id}')">
+            <span class="column-drag-handle">⋮⋮</span>
+            <span class="column-title" onclick="startEditingColumnTitle(event, '${col.id}')">${col.title}</span>
+            <span class="task-count">${sortedTasks.length}${sortedTasks.length !== col.tasks.length ? '/' + col.tasks.length : ''}</span>
+            <div class="column-actions">
+              <button class="column-action-btn" onclick="startEditingColumnTitle(event, '${col.id}')" title="Edit column name">✎</button>
+              <button class="column-action-btn delete" onclick="deleteColumn(event, '${col.id}')" title="Delete column">✕</button>
+            </div>
+          </div>
+          <div class="add-task" style="border-top: none; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <button onclick="openAddModal('${col.id}')">+ Add task</button>
+          </div>
+          <div class="column-tasks"
+               data-column-id="${col.id}"
+               ondragover="onDragOver(event)"
+               ondragleave="onDragLeave(event)"
+               ondrop="onDrop(event, '${col.id}')">
+            ${sortedTasks.length === 0 ? '<div class="empty-state">No tasks</div>' :
+              sortedTasks.map(task => renderTask(task, col.id)).join('')}
+          </div>
+          <div class="add-task">
+            <button onclick="openAddModal('${col.id}')">+ Add task</button>
+          </div>
+        </div>
+      `;
+      }).join('') + `
+        <div class="add-column-placeholder" onclick="startAddingColumn()">
+          <button>+ Add Column</button>
+        </div>
+      `;
+    }
+
+    function getBorderColorForColumn(columnId) {
+      // Hardcoded for legacy columns
+      if (columnId === 'done') return '#4ade80';
+      if (columnId === 'waiting') return '#fbbf24';
+      if (columnId === 'in-progress') return '#818cf8';
+
+      // Dynamic for new columns
+      const board = boardData?.boards?.find(b => b.id === currentBoardId);
+      const column = board?.columns.find(c => c.id === columnId);
+      return column?.color || '#00d4ff';
+    }
+
+    function renderTask(task, columnId) {
+      let descriptionHtml = '';
+      if (task.description) {
+        // Parse markdown and sanitize
+        descriptionHtml = DOMPurify.sanitize(marked.parse(task.description), {
+          ADD_ATTR: ['target', 'rel']
+        });
+
+        // Add target="_blank" and rel="noopener noreferrer" to all links
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = descriptionHtml;
+        tempDiv.querySelectorAll('a').forEach(link => {
+          link.setAttribute('target', '_blank');
+          link.setAttribute('rel', 'noopener noreferrer');
+        });
+        descriptionHtml = tempDiv.innerHTML;
+      }
+
+      // Comments indicator
+      let commentsHtml = '';
+      const comments = task.comments || [];
+      if (comments.length > 0) {
+        const commentsIcon = `<span class="comments-icon" title="${comments.length} comment${comments.length > 1 ? 's' : ''}">💬 ${comments.length}</span>`;
+
+        // Show preview of latest comment
+        const latestComment = comments[comments.length - 1];
+        const previewText = latestComment.text.substring(0, 60) + (latestComment.text.length > 60 ? '...' : '');
+        const commentsPreview = `<div class="comments-preview">${escapeHtml(latestComment.author)}: ${escapeHtml(previewText)}</div>`;
+
+        commentsHtml = commentsIcon + commentsPreview;
+      }
+
+      const priority = task.priority || 'medium';
+      const priorityLabels = { critical: 'CRITICAL', high: 'HIGH', medium: 'MED', low: 'LOW' };
+      const priorityBadge = `<span class="priority-badge priority-${priority}">${priorityLabels[priority]}</span>`;
+
+      // Urgency badge based on due date
+      const urgency = getUrgency(task.dueDate);
+      const urgencyBadge = urgency ?
+        `<span class="urgency-badge urgency-${urgency.level}">${urgency.label}</span>` : '';
+
+      // Task age indicator (only for non-done tasks)
+      let ageHtml = '';
+      if (columnId !== 'done' && task.createdAt) {
+        const age = getTaskAge(task.createdAt);
+        ageHtml = `<span class="task-age ${age.class}">${age.text}</span>`;
+      }
+
+      const tagsHtml = task.tags && task.tags.length > 0 ? `
+        <div class="task-tags">
+          ${task.tags.map(tag => `<span class="tag-pill">${escapeHtml(tag)}</span>`).join('')}
+        </div>
+      ` : '';
+
+      const borderColor = getBorderColorForColumn(columnId);
+
+      const isFocused = isTaskFocused(task.id);
+      const starClass = isFocused ? 'starred' : '';
+      const starIcon = isFocused ? '★' : '☆';
+      const taskClass = isFocused ? 'task starred-task' : 'task';
+
+      return `
+        <div class="${taskClass}"
+             data-task-id="${task.id}"
+             data-column-id="${columnId}"
+             style="border-left-color: ${borderColor};">
+          <div class="task-title"
+               draggable="true"
+               ondragstart="onDragStart(event)"
+               ondragend="onDragEnd(event)">${escapeHtml(task.title)}${priorityBadge}${urgencyBadge}${ageHtml}</div>
+          ${task.description ? `<div class="task-description">${descriptionHtml}</div>` : ''}
+          ${tagsHtml}
+          ${commentsHtml}
+          <div class="task-meta">
+            <span>${task.completedAt ? '✓ ' + new Date(task.completedAt).toLocaleDateString() :
+                   new Date(task.createdAt).toLocaleDateString()}</span>
+            <div class="task-actions">
+              <button class="star-btn ${starClass}" onclick="toggleTaskFocus('${task.id}', event)" title="${isFocused ? 'Remove from today\'s focus' : 'Add to today\'s focus'}">${starIcon}</button>
+              <button onclick="editTask(event, '${task.id}', '${columnId}')">✎</button>
+              <button onclick="deleteTask(event, '${task.id}')">✕</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Drag and drop
+    let draggedTaskId = null;
+    let draggedFromColumn = null;
+    
+    function onDragStart(e) {
+      // Get the parent task element (since we're dragging from the title)
+      const taskElement = e.target.closest('.task');
+      if (!taskElement) return;
+
+      draggedTaskId = taskElement.dataset.taskId;
+      draggedFromColumn = taskElement.dataset.columnId;
+      taskElement.classList.add('dragging');
+    }
+
+    function onDragEnd(e) {
+      const taskElement = e.target.closest('.task');
+      if (taskElement) {
+        taskElement.classList.remove('dragging');
+      }
+    }
+    
+    function onDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add('drag-over');
+
+      // Visual feedback for drop position
+      const afterElement = getDragAfterElement(e.currentTarget, e.clientY);
+      const draggingTask = document.querySelector('.dragging');
+      if (!draggingTask) return;
+
+      if (afterElement == null) {
+        e.currentTarget.appendChild(draggingTask);
+      } else {
+        e.currentTarget.insertBefore(draggingTask, afterElement);
+      }
+    }
+
+    function onDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    function getDragAfterElement(container, y) {
+      const draggableElements = [...container.querySelectorAll('.task:not(.dragging)')];
+
+      return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset: offset, element: child };
+        } else {
+          return closest;
+        }
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    async function onDrop(e, toColumnId) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+
+      if (!draggedTaskId) return;
+
+      // Track if we're moving to done from elsewhere
+      const wasNotDone = draggedFromColumn !== 'done';
+      const movingToDone = toColumnId === 'done';
+
+      // Calculate drop position
+      const tasks = e.currentTarget.querySelectorAll('.task');
+      let toIndex = 0;
+      tasks.forEach((task, index) => {
+        if (task.dataset.taskId === draggedTaskId) {
+          toIndex = index;
+        }
+      });
+
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: draggedTaskId,
+            fromColumnId: draggedFromColumn,
+            toColumnId: toColumnId,
+            toIndex: toIndex
+          })
+        });
+        loadBoard();
+
+        // Celebrate when completing a task!
+        if (movingToDone && wasNotDone) {
+          celebrate();
+        }
+      } catch (err) {
+        console.error('Move failed:', err);
+      }
+    }
+
+    // ============================================
+    // COLUMN MANAGEMENT
+    // ============================================
+
+    // Column drag and drop
+    let draggedColumnId = null;
+
+    function onColumnDragStart(e, columnId) {
+      draggedColumnId = columnId;
+      e.currentTarget.closest('.column').classList.add('dragging-column');
+    }
+
+    function onColumnDragEnd(e) {
+      e.currentTarget.closest('.column').classList.remove('dragging-column');
+      draggedColumnId = null;
+    }
+
+    function onColumnDragOver(e) {
+      e.preventDefault();
+    }
+
+    async function onColumnDrop(e, targetColumnId) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!draggedColumnId || draggedColumnId === targetColumnId) return;
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return;
+
+      const currentOrder = board.columns.map(c => c.id);
+      const draggedIndex = currentOrder.indexOf(draggedColumnId);
+      const targetIndex = currentOrder.indexOf(targetColumnId);
+
+      // Reorder array
+      currentOrder.splice(draggedIndex, 1);
+      currentOrder.splice(targetIndex, 0, draggedColumnId);
+
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/columns/reorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ columnIds: currentOrder })
+        });
+        loadBoard();
+      } catch (err) {
+        console.error('Column reorder failed:', err);
+        alert('Failed to reorder columns');
+      }
+    }
+
+    // Add new column
+    function startAddingColumn() {
+      const placeholder = document.querySelector('.add-column-placeholder');
+      placeholder.innerHTML = `
+        <input type="text"
+               class="column-title-edit"
+               placeholder="Enter column name..."
+               onkeydown="handleAddColumnKeydown(event)"
+               onblur="cancelAddingColumn()"
+               style="width: 250px; margin: 0;">
+      `;
+      const input = placeholder.querySelector('input');
+      input.focus();
+    }
+
+    async function handleAddColumnKeydown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const title = e.target.value.trim();
+        if (title) {
+          await createColumn(title);
+        } else {
+          cancelAddingColumn();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelAddingColumn();
+      }
+    }
+
+    async function createColumn(title) {
+      try {
+        const response = await fetch(`${API}/api/tasks/${currentBoardId}/column`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, color: '#00d4ff' })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(error.error || 'Failed to create column');
+          return;
+        }
+
+        loadBoard();
+      } catch (err) {
+        console.error('Create column failed:', err);
+        alert('Failed to create column');
+      }
+    }
+
+    function cancelAddingColumn() {
+      renderBoard();
+    }
+
+    // Edit column title
+    function startEditingColumnTitle(e, columnId) {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      const column = board.columns.find(c => c.id === columnId);
+      if (!column) return;
+
+      const columnElement = document.querySelector(`.column[data-column-id="${columnId}"]`);
+      const titleElement = columnElement.querySelector('.column-title');
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'column-title-edit';
+      input.value = column.title;
+      input.onkeydown = (e) => handleEditColumnKeydown(e, columnId);
+      input.onblur = () => cancelEditingColumnTitle(columnId);
+
+      titleElement.replaceWith(input);
+      input.focus();
+      input.select();
+    }
+
+    async function handleEditColumnKeydown(e, columnId) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const newTitle = e.target.value.trim();
+        if (newTitle) {
+          await updateColumnTitle(columnId, newTitle);
+        } else {
+          cancelEditingColumnTitle(columnId);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelEditingColumnTitle(columnId);
+      }
+    }
+
+    async function updateColumnTitle(columnId, newTitle) {
+      try {
+        const response = await fetch(`${API}/api/tasks/${currentBoardId}/column/${columnId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(error.error || 'Failed to update column');
+          return;
+        }
+
+        loadBoard();
+      } catch (err) {
+        console.error('Update column failed:', err);
+        alert('Failed to update column');
+      }
+    }
+
+    function cancelEditingColumnTitle(columnId) {
+      renderBoard();
+    }
+
+    // Delete column
+    async function deleteColumn(e, columnId) {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      const column = board.columns.find(c => c.id === columnId);
+      if (!column) return;
+
+      // Check if column has tasks
+      if (column.tasks && column.tasks.length > 0) {
+        alert(`Cannot delete column with ${column.tasks.length} task${column.tasks.length > 1 ? 's' : ''}. Please move or delete tasks first.`);
+        return;
+      }
+
+      // Prevent deleting last column
+      if (board.columns.length <= 1) {
+        alert('Cannot delete the last column');
+        return;
+      }
+
+      if (!confirm(`Delete column "${column.title}"?`)) return;
+
+      try {
+        const response = await fetch(`${API}/api/tasks/${currentBoardId}/column/${columnId}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(error.error || 'Failed to delete column');
+          return;
+        }
+
+        loadBoard();
+      } catch (err) {
+        console.error('Delete column failed:', err);
+        alert('Failed to delete column');
+      }
+    }
+
+    // Modal handling
+    function openAddModal(columnId) {
+      modalColumnId = columnId;
+      editingTaskId = null;
+      currentTags = [];
+      document.getElementById('modalTitle').textContent = 'Add Task';
+      document.getElementById('taskTitle').value = '';
+      document.getElementById('taskPriority').value = 'medium';
+      document.getElementById('taskDueDate').value = '';
+      document.getElementById('taskDesc').value = '';
+      document.getElementById('newComment').value = '';
+      document.getElementById('commentAuthor').value = 'User';
+      document.getElementById('modalStarBtn').style.display = 'none';
+      renderComments([]);
+      renderTags();
+      document.getElementById('taskModal').classList.add('active');
+      document.getElementById('taskTitle').focus();
+    }
+    
+    function editTask(event, taskId, columnId) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      const col = board.columns.find(c => c.id === columnId);
+      const task = col.tasks.find(t => t.id === taskId);
+
+      modalColumnId = columnId;
+      editingTaskId = taskId;
+      currentTags = task.tags ? [...task.tags] : [];
+      document.getElementById('modalTitle').textContent = 'Edit Task';
+      document.getElementById('taskTitle').value = task.title;
+      document.getElementById('taskPriority').value = task.priority || 'medium';
+      document.getElementById('taskDueDate').value = task.dueDate || '';
+      document.getElementById('taskDesc').value = task.description || '';
+      document.getElementById('newComment').value = '';
+
+      // Show and configure star button
+      const starBtn = document.getElementById('modalStarBtn');
+      starBtn.style.display = 'inline-block';
+      updateModalStarButton();
+      document.getElementById('commentAuthor').value = 'User';
+
+      // Migrate old notes to comments if needed
+      let comments = task.comments || [];
+      if (task.notes && !task.comments) {
+        comments = [{
+          id: 'legacy-' + Date.now(),
+          text: task.notes,
+          author: 'User',
+          timestamp: task.createdAt || new Date().toISOString()
+        }];
+      }
+
+      renderComments(comments);
+      renderTags();
+      document.getElementById('taskModal').classList.add('active');
+      document.getElementById('taskTitle').focus();
+    }
+    
+    function closeModal() {
+      document.getElementById('taskModal').classList.remove('active');
+      document.getElementById('hotkeysModal').classList.remove('active');
+    }
+    
+    async function saveTask() {
+      const title = document.getElementById('taskTitle').value.trim();
+      const priority = document.getElementById('taskPriority').value;
+      const dueDate = document.getElementById('taskDueDate').value || null;
+      const description = document.getElementById('taskDesc').value.trim();
+      const tags = currentTags;
+
+      if (!title) return;
+
+      try {
+        if (editingTaskId) {
+          // Don't include comments - they're managed separately to avoid overwriting API-added comments
+          await fetch(`${API}/api/tasks/${currentBoardId}/task/${editingTaskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, priority, dueDate, description, tags })
+          });
+        } else {
+          await fetch(`${API}/api/tasks/${currentBoardId}/task`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              columnId: modalColumnId,
+              task: { title, priority, dueDate, description, tags }
+            })
+          });
+        }
+        closeModal();
+        loadBoard();
+      } catch (err) {
+        console.error('Save failed:', err);
+      }
+    }
+    
+    async function deleteTask(event, taskId) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      if (!confirm('Delete this task?')) return;
+
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/task/${taskId}`, {
+          method: 'DELETE'
+        });
+        loadBoard();
+      } catch (err) {
+        console.error('Delete failed:', err);
+      }
+    }
+
+    // ============================================
+    // COMMENTS MANAGEMENT
+    // ============================================
+
+    function renderComments(comments) {
+      const container = document.getElementById('commentsList');
+
+      if (!comments || comments.length === 0) {
+        container.innerHTML = '<div class="comments-empty">No comments yet. Add one below!</div>';
+        return;
+      }
+
+      container.innerHTML = comments.map(comment => {
+        const timestamp = new Date(comment.timestamp);
+        const timeStr = timestamp.toLocaleString();
+        const editedStr = comment.editedAt ?
+          `<span class="comment-edited">(edited ${new Date(comment.editedAt).toLocaleString()})</span>` : '';
+
+        const authorClass = comment.author.toLowerCase() === 'llm' ? 'author-llm' :
+                           comment.author.toLowerCase() === 'user' ? 'author-user' : '';
+
+        // Parse markdown for comment body
+        const parsedBody = DOMPurify.sanitize(marked.parse(comment.text || ''));
+
+        return `
+          <div class="comment" data-comment-id="${comment.id}">
+            <div class="comment-header">
+              <div>
+                <span class="comment-author ${authorClass}">${escapeHtml(comment.author)}</span>
+                <span class="comment-timestamp">${timeStr}</span>
+                ${editedStr}
+              </div>
+            </div>
+            <div class="comment-body">${parsedBody}</div>
+            <div class="comment-actions">
+              <button onclick="startEditingComment('${comment.id}')">Edit</button>
+              <button onclick="deleteComment('${comment.id}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function addComment() {
+      const text = document.getElementById('newComment').value.trim();
+      const author = document.getElementById('commentAuthor').value.trim() || 'User';
+
+      if (!text) return;
+
+      if (!editingTaskId) {
+        // For new tasks, we can't add comments until the task is created
+        alert('Please save the task first before adding comments');
+        return;
+      }
+
+      const newComment = {
+        id: 'comment-' + Date.now(),
+        text: text,
+        author: author,
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        // Fetch fresh data to avoid overwriting comments added by API
+        const freshData = await fetch(`${API}/api/tasks`).then(r => r.json());
+        const freshBoard = freshData.boards.find(b => b.id === currentBoardId);
+        const freshCol = freshBoard?.columns.find(c => c.tasks.some(t => t.id === editingTaskId));
+        const freshTask = freshCol?.tasks.find(t => t.id === editingTaskId);
+
+        if (!freshTask) {
+          console.error('Task not found');
+          return;
+        }
+
+        const updatedComments = [...(freshTask.comments || []), newComment];
+
+        // Save to backend
+        await fetch(`${API}/api/tasks/${currentBoardId}/task/${editingTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comments: updatedComments })
+        });
+
+        document.getElementById('newComment').value = '';
+        renderComments(updatedComments);
+        loadBoard();
+      } catch (err) {
+        console.error('Failed to add comment:', err);
+      }
+    }
+
+    function startEditingComment(commentId) {
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      const col = board.columns.find(c => c.tasks.some(t => t.id === editingTaskId));
+      const task = col?.tasks.find(t => t.id === editingTaskId);
+      const comment = task?.comments?.find(c => c.id === commentId);
+
+      if (!comment) return;
+
+      const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
+      const bodyEl = commentEl.querySelector('.comment-body');
+      const actionsEl = commentEl.querySelector('.comment-actions');
+
+      actionsEl.style.display = 'none';
+
+      const editArea = document.createElement('div');
+      editArea.className = 'comment-edit-area';
+      editArea.innerHTML = `
+        <textarea>${escapeHtml(comment.text)}</textarea>
+        <div class="comment-edit-actions">
+          <button onclick="cancelEditingComment('${commentId}', '${escapeHtml(comment.text).replace(/'/g, "&#39;")}')">Cancel</button>
+          <button onclick="saveEditedComment('${commentId}')">Save</button>
+        </div>
+      `;
+
+      bodyEl.replaceWith(editArea);
+      editArea.querySelector('textarea').focus();
+    }
+
+    function cancelEditingComment(commentId, originalText) {
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      const col = board.columns.find(c => c.tasks.some(t => t.id === editingTaskId));
+      const task = col?.tasks.find(t => t.id === editingTaskId);
+
+      if (!task) return;
+
+      renderComments(task.comments);
+    }
+
+    async function saveEditedComment(commentId) {
+      const commentEl = document.querySelector(`[data-comment-id="${commentId}"]`);
+      const textarea = commentEl.querySelector('textarea');
+      const newText = textarea.value.trim();
+
+      if (!newText) {
+        alert('Comment cannot be empty');
+        return;
+      }
+
+      try {
+        // Fetch fresh data to avoid overwriting other comments
+        const freshData = await fetch(`${API}/api/tasks`).then(r => r.json());
+        const freshBoard = freshData.boards.find(b => b.id === currentBoardId);
+        const freshCol = freshBoard?.columns.find(c => c.tasks.some(t => t.id === editingTaskId));
+        const freshTask = freshCol?.tasks.find(t => t.id === editingTaskId);
+
+        if (!freshTask) return;
+
+        const updatedComments = (freshTask.comments || []).map(c => {
+          if (c.id === commentId) {
+            return { ...c, text: newText, editedAt: new Date().toISOString() };
+          }
+          return c;
+        });
+
+        await fetch(`${API}/api/tasks/${currentBoardId}/task/${editingTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comments: updatedComments })
+        });
+
+        renderComments(updatedComments);
+        loadBoard();
+      } catch (err) {
+        console.error('Failed to edit comment:', err);
+      }
+    }
+
+    async function deleteComment(commentId) {
+      if (!confirm('Delete this comment?')) return;
+
+      try {
+        // Fetch fresh data to avoid overwriting other comments
+        const freshData = await fetch(`${API}/api/tasks`).then(r => r.json());
+        const freshBoard = freshData.boards.find(b => b.id === currentBoardId);
+        const freshCol = freshBoard?.columns.find(c => c.tasks.some(t => t.id === editingTaskId));
+        const freshTask = freshCol?.tasks.find(t => t.id === editingTaskId);
+
+        if (!freshTask) return;
+
+        const updatedComments = (freshTask.comments || []).filter(c => c.id !== commentId);
+
+        await fetch(`${API}/api/tasks/${currentBoardId}/task/${editingTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comments: updatedComments })
+        });
+
+        renderComments(updatedComments);
+        loadBoard();
+      } catch (err) {
+        console.error('Failed to delete comment:', err);
+      }
+    }
+    
+    // ============================================
+    // VIM-STYLE KEYBOARD NAVIGATION
+    // ============================================
+
+    let vimMode = 'normal'; // normal, insert, command
+    let selectedColumnIndex = 0;
+    let selectedTaskIndex = -1;
+    let pendingKeys = '';
+    let pendingTimeout = null;
+
+    function getColumnOrder() {
+      const board = boardData?.boards?.find(b => b.id === currentBoardId);
+      return board?.columns.map(c => c.id) || [];
+    }
+
+    function updateVimModeDisplay() {
+      const display = document.getElementById('vimMode');
+      display.textContent = vimMode.toUpperCase();
+      display.className = 'vim-mode ' + vimMode;
+    }
+
+    function updatePendingKeysDisplay() {
+      const display = document.getElementById('pendingKeys');
+      if (pendingKeys) {
+        display.textContent = pendingKeys;
+        display.style.display = 'block';
+      } else {
+        display.style.display = 'none';
+      }
+    }
+
+    function clearPendingKeys() {
+      pendingKeys = '';
+      if (pendingTimeout) clearTimeout(pendingTimeout);
+      pendingTimeout = null;
+      updatePendingKeysDisplay();
+    }
+
+    function getVisibleTasks(columnId) {
+      const board = boardData?.boards?.find(b => b.id === currentBoardId);
+      if (!board) return [];
+
+      const col = board.columns.find(c => c.id === columnId);
+      if (!col) return [];
+
+      let tasks = [...col.tasks];
+
+      // Apply focus mode filter
+      if (focusMode && columnId !== 'done') {
+        tasks = tasks.filter(t => t.priority === 'critical' || t.priority === 'high' || isTaskFocused(t.id));
+      }
+
+      // Apply priority filter
+      if (filters.priority) {
+        tasks = tasks.filter(t => (t.priority || 'medium') === filters.priority);
+      }
+
+      // Apply urgency filter
+      if (filters.urgency) {
+        tasks = tasks.filter(t => {
+          const urgency = getUrgency(t.dueDate);
+          if (filters.urgency === 'has-due') return !!t.dueDate;
+          if (filters.urgency === 'week') {
+            // "This Week" includes overdue, today, tomorrow, and within 7 days
+            return urgency !== null;
+          }
+          return urgency && urgency.level === filters.urgency;
+        });
+      }
+
+      // Apply tag filters
+      if (filters.tags.length > 0) {
+        tasks = tasks.filter(t => {
+          if (!t.tags || !Array.isArray(t.tags)) return false;
+          return filters.tags.every(ft => t.tags.includes(ft));
+        });
+      }
+
+      // Apply search filter
+      if (filters.search) {
+        tasks = tasks.filter(task => {
+          const searchText = filters.search;
+          if (task.title && task.title.toLowerCase().includes(searchText)) return true;
+          if (task.description && task.description.toLowerCase().includes(searchText)) return true;
+          if (task.tags && task.tags.some(tag => tag.toLowerCase().includes(searchText))) return true;
+          if (task.comments && task.comments.some(c => c.text && c.text.toLowerCase().includes(searchText))) return true;
+          return false;
+        });
+      }
+
+      // Apply same sorting as renderBoard to match display order (starred first, then by sort)
+      tasks.sort((a, b) => {
+        // Starred tasks always come first
+        const aStarred = isTaskFocused(a.id) ? 0 : 1;
+        const bStarred = isTaskFocused(b.id) ? 0 : 1;
+        if (aStarred !== bStarred) return aStarred - bStarred;
+
+        if (filters.sort === 'priority') {
+          const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+          const aPriority = priorityOrder[a.priority] ?? 2;
+          const bPriority = priorityOrder[b.priority] ?? 2;
+          return aPriority - bPriority;
+        } else if (filters.sort === 'urgency') {
+          const urgencyOrder = { overdue: 0, today: 1, tomorrow: 2, week: 3 };
+          const aUrgency = getUrgency(a.dueDate);
+          const bUrgency = getUrgency(b.dueDate);
+          const aOrder = aUrgency ? urgencyOrder[aUrgency.level] ?? 4 : 5;
+          const bOrder = bUrgency ? urgencyOrder[bUrgency.level] ?? 4 : 5;
+          return aOrder - bOrder;
+        } else if (filters.sort === 'newest') {
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        } else if (filters.sort === 'oldest') {
+          return new Date(a.createdAt) - new Date(b.createdAt);
+        }
+        return 0;
+      });
+
+      return tasks;
+    }
+
+    function updateSelection() {
+      // Remove all selections
+      document.querySelectorAll('.task.selected').forEach(el => el.classList.remove('selected'));
+      document.querySelectorAll('.column.selected-column').forEach(el => el.classList.remove('selected-column'));
+
+      // Get current column
+      const columnId = getColumnOrder()[selectedColumnIndex];
+      const column = document.querySelector(`.column[data-column-id="${columnId}"]`);
+      if (column) {
+        column.classList.add('selected-column');
+      }
+
+      // Get tasks in this column
+      const tasks = getVisibleTasks(columnId);
+
+      if (selectedTaskIndex >= 0 && selectedTaskIndex < tasks.length) {
+        const task = tasks[selectedTaskIndex];
+        const taskEl = document.querySelector(`.task[data-task-id="${task.id}"]`);
+        if (taskEl) {
+          taskEl.classList.add('selected');
+          taskEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    }
+
+    function selectColumn(index) {
+      selectedColumnIndex = Math.max(0, Math.min(getColumnOrder().length - 1, index));
+      selectedTaskIndex = 0;
+      updateSelection();
+    }
+
+    function selectTask(delta) {
+      const columnId = getColumnOrder()[selectedColumnIndex];
+      const tasks = getVisibleTasks(columnId);
+
+      if (tasks.length === 0) {
+        selectedTaskIndex = -1;
+      } else {
+        selectedTaskIndex = Math.max(0, Math.min(tasks.length - 1, selectedTaskIndex + delta));
+      }
+      updateSelection();
+    }
+
+    function selectFirstTask() {
+      selectedTaskIndex = 0;
+      updateSelection();
+    }
+
+    function selectLastTask() {
+      const columnId = getColumnOrder()[selectedColumnIndex];
+      const tasks = getVisibleTasks(columnId);
+      selectedTaskIndex = Math.max(0, tasks.length - 1);
+      updateSelection();
+    }
+
+    function getSelectedTask() {
+      const columnId = getColumnOrder()[selectedColumnIndex];
+      const tasks = getVisibleTasks(columnId);
+      if (selectedTaskIndex >= 0 && selectedTaskIndex < tasks.length) {
+        return { task: tasks[selectedTaskIndex], columnId };
+      }
+      return null;
+    }
+
+    async function moveSelectedTask(toColumnId) {
+      const selected = getSelectedTask();
+      if (!selected) return;
+
+      const fromColumnId = selected.columnId;
+      const wasNotDone = fromColumnId !== 'done';
+      const movingToDone = toColumnId === 'done';
+
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: selected.task.id,
+            fromColumnId: fromColumnId,
+            toColumnId: toColumnId,
+            toIndex: 0
+          })
+        });
+
+        // Adjust selection
+        const tasks = getVisibleTasks(fromColumnId);
+        if (selectedTaskIndex >= tasks.length - 1) {
+          selectedTaskIndex = Math.max(0, tasks.length - 2);
+        }
+
+        await loadBoard();
+
+        if (movingToDone && wasNotDone) {
+          celebrate();
+        }
+      } catch (err) {
+        console.error('Move failed:', err);
+      }
+    }
+
+    async function deleteSelectedTask() {
+      const selected = getSelectedTask();
+      if (!selected) return;
+
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/task/${selected.task.id}`, {
+          method: 'DELETE'
+        });
+
+        const tasks = getVisibleTasks(selected.columnId);
+        if (selectedTaskIndex >= tasks.length - 1) {
+          selectedTaskIndex = Math.max(0, tasks.length - 2);
+        }
+
+        loadBoard();
+      } catch (err) {
+        console.error('Delete failed:', err);
+      }
+    }
+
+    function editSelectedTask() {
+      const selected = getSelectedTask();
+      if (!selected) return;
+
+      editTask(new Event('click'), selected.task.id, selected.columnId);
+      vimMode = 'insert';
+      updateVimModeDisplay();
+    }
+
+    function openCommandMode() {
+      vimMode = 'command';
+      updateVimModeDisplay();
+      document.getElementById('vimCommandBar').classList.add('active');
+      document.getElementById('vimCommandInput').value = '';
+      document.getElementById('vimCommandInput').focus();
+    }
+
+    function closeCommandMode() {
+      vimMode = 'normal';
+      updateVimModeDisplay();
+      document.getElementById('vimCommandBar').classList.remove('active');
+    }
+
+    function handleVimCommand(e) {
+      if (e.key === 'Escape') {
+        closeCommandMode();
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        const cmd = document.getElementById('vimCommandInput').value.trim();
+        executeVimCommand(cmd);
+        closeCommandMode();
+      }
+    }
+
+    function executeVimCommand(cmd) {
+      const parts = cmd.split(/\s+/);
+      const base = parts[0].toLowerCase();
+
+      switch (base) {
+        case 'q':
+          closeModal();
+          break;
+        case 'w':
+          if (document.getElementById('taskModal').classList.contains('active')) {
+            saveTask();
+          }
+          break;
+        case 'wq':
+          saveTask();
+          break;
+        case 'help':
+        case 'h':
+          showKeyboardHelp();
+          break;
+        case 'new':
+        case 'n':
+          openAddModal(getColumnOrder()[selectedColumnIndex]);
+          vimMode = 'insert';
+          updateVimModeDisplay();
+          break;
+        case 'focus':
+          toggleFocusMode();
+          break;
+        case 'refresh':
+        case 'r':
+          loadBoard();
+          break;
+        case 'done':
+        case 'd':
+          moveSelectedTask('done');
+          break;
+        case 'backlog':
+        case 'b':
+          moveSelectedTask('backlog');
+          break;
+        case 'progress':
+        case 'p':
+          moveSelectedTask('in-progress');
+          break;
+        case 'wait':
+        case 'waiting':
+          moveSelectedTask('waiting');
+          break;
+        default:
+          console.log('Unknown command:', cmd);
+      }
+    }
+
+    // Main keyboard handler
+    document.addEventListener('keydown', e => {
+      // Handle tab cycling shortcuts (work in all modes)
+      if (e.key === 'Tab' && e.ctrlKey) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          cycleTab(-1); // Ctrl+Shift+Tab - previous tab
+        } else {
+          cycleTab(1);  // Ctrl+Tab - next tab
+        }
+        return;
+      }
+
+      // Ctrl+t to open board picker (work in all modes except when typing)
+      if (e.key === 't' && e.ctrlKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        showBoardPicker();
+        return;
+      }
+
+      // Ctrl+w to close current tab (work in all modes except when typing)
+      if (e.key === 'w' && e.ctrlKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        if (openTabs.length > 1) {
+          closeTab(new Event('click'), currentBoardId);
+        }
+        return;
+      }
+
+      // Handle insert mode (typing in inputs)
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        if (e.key === 'Escape') {
+          closeModal();
+          closeBoardPicker();
+          closeCommandMode();
+          vimMode = 'normal';
+          updateVimModeDisplay();
+        }
+        if (e.key === 'Enter' && e.ctrlKey) saveTask();
+        return;
+      }
+
+      // Command mode is handled separately
+      if (vimMode === 'command') return;
+
+      // Normal mode
+      e.preventDefault();
+
+      const key = e.key;
+
+      // Handle pending key sequences
+      if (pendingKeys) {
+        pendingKeys += key;
+        updatePendingKeysDisplay();
+
+        // gg - go to top
+        if (pendingKeys === 'gg') {
+          selectFirstTask();
+          clearPendingKeys();
+          return;
+        }
+
+        // dd - delete task
+        if (pendingKeys === 'dd') {
+          if (confirm('Delete this task?')) {
+            deleteSelectedTask();
+          }
+          clearPendingKeys();
+          return;
+        }
+
+        // m + number key (1-9) - move task to column by index
+        if (pendingKeys.startsWith('m') && pendingKeys.length === 2) {
+          const moveKey = pendingKeys[1];
+          const columnIndex = parseInt(moveKey, 10);
+          if (columnIndex >= 1 && columnIndex <= 9) {
+            const columns = getColumnOrder();
+            if (columnIndex <= columns.length) {
+              moveSelectedTask(columns[columnIndex - 1]);
+            }
+          }
+          clearPendingKeys();
+          return;
+        }
+
+        // Clear after timeout or invalid sequence
+        if (pendingKeys.length > 2) {
+          clearPendingKeys();
+        }
+        return;
+      }
+
+      // Single key commands
+      switch (key) {
+        // Navigation
+        case 'j':
+          selectTask(1);
+          break;
+        case 'k':
+          selectTask(-1);
+          break;
+        case 'h':
+          selectColumn(selectedColumnIndex - 1);
+          break;
+        case 'l':
+          selectColumn(selectedColumnIndex + 1);
+          break;
+        case 'G':
+          selectLastTask();
+          break;
+        case 'g':
+          pendingKeys = 'g';
+          pendingTimeout = setTimeout(clearPendingKeys, 1000);
+          updatePendingKeysDisplay();
+          break;
+
+        // Column jumps
+        case '1':
+          selectColumn(0);
+          break;
+        case '2':
+          selectColumn(1);
+          break;
+        case '3':
+          selectColumn(2);
+          break;
+        case '4':
+          selectColumn(3);
+          break;
+        case '5':
+          selectColumn(4);
+          break;
+        case '6':
+          selectColumn(5);
+          break;
+        case '7':
+          selectColumn(6);
+          break;
+        case '8':
+          selectColumn(7);
+          break;
+        case '9':
+          selectColumn(8);
+          break;
+
+        // Actions
+        case 'Enter':
+          editSelectedTask();
+          break;
+        case 'o':
+          openAddModal(getColumnOrder()[selectedColumnIndex]);
+          vimMode = 'insert';
+          updateVimModeDisplay();
+          break;
+        case 'O':
+          openAddModal('backlog');
+          vimMode = 'insert';
+          updateVimModeDisplay();
+          break;
+        case 'd':
+          pendingKeys = 'd';
+          pendingTimeout = setTimeout(clearPendingKeys, 1000);
+          updatePendingKeysDisplay();
+          break;
+        case 'x':
+          if (confirm('Delete this task?')) {
+            deleteSelectedTask();
+          }
+          break;
+        case 'm':
+          pendingKeys = 'm';
+          pendingTimeout = setTimeout(clearPendingKeys, 1000);
+          updatePendingKeysDisplay();
+          break;
+        case ' ':
+          // Space = quick complete
+          moveSelectedTask('done');
+          break;
+
+        // Command mode
+        case ':':
+          openCommandMode();
+          break;
+
+        // Other
+        case 's':
+          toggleSelectedTaskFocus();
+          break;
+        case 'f':
+          toggleFocusMode();
+          break;
+        case 'a':
+          toggleArchiveView();
+          break;
+        case 'r':
+          loadBoard();
+          break;
+        case '?':
+          showKeyboardHelp();
+          break;
+        case 'Escape':
+          closeModal();
+          clearPendingKeys();
+          break;
+      }
+    });
+
+    // Close modals when clicking backdrop
+    document.getElementById('hotkeysModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeHotkeysModal();
+      }
+    });
+
+    // Focus mode
+    let focusMode = false;
+
+    function toggleFocusMode() {
+      focusMode = !focusMode;
+      const btn = document.getElementById('focusBtn');
+      btn.classList.toggle('active', focusMode);
+      btn.innerHTML = focusMode ? '✨ All Tasks' : '🎯 Focus Mode';
+
+      if (focusMode) {
+        filters.priority = '';
+        filters.urgency = '';
+        document.getElementById('filterPriority').value = '';
+        document.getElementById('filterUrgency').value = '';
+      }
+
+      renderBoard();
+    }
+
+    // Stats bar
+    function updateStatsBar() {
+      if (!boardData) return;
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return;
+
+      let stats = { total: 0, done: 0, inProgress: 0, critical: 0, high: 0 };
+      const visibleDone = getVisibleDoneTasks();
+
+      board.columns.forEach(col => {
+        // For done column, only count visible (non-archived) tasks
+        const tasks = col.id === 'done' ? visibleDone : col.tasks;
+        tasks.forEach(task => {
+          stats.total++;
+          if (col.id === 'done') stats.done++;
+          if (col.id === 'in-progress') stats.inProgress++;
+          if (task.priority === 'critical') stats.critical++;
+          if (task.priority === 'high') stats.high++;
+        });
+      });
+
+      const completionRate = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+      const streak = calculateStreak();
+
+      document.getElementById('statsBar').innerHTML = `
+        ${stats.critical > 0 ? `<div class="stat-item critical">🔴 <span class="stat-value">${stats.critical}</span> critical</div>` : ''}
+        ${stats.high > 0 ? `<div class="stat-item high">🟠 <span class="stat-value">${stats.high}</span> high</div>` : ''}
+        <div class="stat-item progress">🔄 <span class="stat-value">${stats.inProgress}</span> active</div>
+        <div class="stat-item done">✅ <span class="stat-value">${stats.done}</span> done</div>
+        <div class="progress-ring">
+          <svg width="32" height="32">
+            <circle cx="16" cy="16" r="14" stroke="rgba(255,255,255,0.1)" stroke-width="3" fill="none"/>
+            <circle cx="16" cy="16" r="14" stroke="#4ade80" stroke-width="3" fill="none"
+                    stroke-dasharray="${completionRate * 0.88} 88"
+                    stroke-linecap="round"/>
+          </svg>
+          <span class="progress-text">${completionRate}%</span>
+        </div>
+        ${streak > 0 ? `<div class="streak-badge">🔥 ${streak} day streak</div>` : ''}
+      `;
+    }
+
+    function calculateStreak() {
+      if (!boardData) return 0;
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return 0;
+
+      const doneCol = board.columns.find(c => c.id === 'done');
+      if (!doneCol) return 0;
+
+      // Get dates of completed tasks
+      const completedDates = new Set();
+      doneCol.tasks.forEach(task => {
+        if (task.completedAt) {
+          const date = new Date(task.completedAt).toDateString();
+          completedDates.add(date);
+        }
+      });
+
+      // Count consecutive days from today backwards
+      let streak = 0;
+      let checkDate = new Date();
+
+      while (completedDates.has(checkDate.toDateString())) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+
+      return streak;
+    }
+
+    // Task age
+    function getTaskAge(createdAt) {
+      const days = Math.floor((Date.now() - new Date(createdAt)) / (1000 * 60 * 60 * 24));
+
+      if (days < 3) return { class: 'fresh', text: 'new' };
+      if (days < 7) return { class: 'aging', text: `${days}d` };
+      return { class: 'stale', text: `${days}d` };
+    }
+
+    // Task urgency based on due date
+    function getUrgency(dueDate) {
+      if (!dueDate) return null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // Parse date as local time by splitting the string (avoids UTC timezone issues)
+      const [year, month, day] = dueDate.split('-').map(Number);
+      const due = new Date(year, month - 1, day);
+      const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) return { level: 'overdue', label: 'OVERDUE' };
+      if (diffDays === 0) return { level: 'today', label: 'TODAY' };
+      if (diffDays === 1) return { level: 'tomorrow', label: 'TOMORROW' };
+      if (diffDays <= 7) return { level: 'week', label: 'THIS WEEK' };
+      return null; // No badge for later
+    }
+
+    // ============================================
+    // ARCHIVE MANAGEMENT
+    // ============================================
+
+    let showArchived = false;
+    let archiveDays = parseInt(localStorage.getItem('archiveDays') || '7');
+
+    // Load saved archive days setting
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('archiveDays').value = archiveDays.toString();
+    });
+
+    function toggleArchiveView() {
+      showArchived = !showArchived;
+      const btn = document.getElementById('archiveBtn');
+      const section = document.getElementById('archivedSection');
+
+      btn.classList.toggle('active', showArchived);
+      section.classList.toggle('visible', showArchived);
+
+      if (showArchived) {
+        renderArchivedTasks();
+      }
+    }
+
+    function updateArchiveDays() {
+      archiveDays = parseInt(document.getElementById('archiveDays').value);
+      localStorage.setItem('archiveDays', archiveDays.toString());
+      renderBoard();
+      if (showArchived) {
+        renderArchivedTasks();
+      }
+    }
+
+    function getArchivedTasks() {
+      if (!boardData || archiveDays === 0) return [];
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return [];
+
+      const doneCol = board.columns.find(c => c.id === 'done');
+      if (!doneCol) return [];
+
+      const cutoff = Date.now() - (archiveDays * 24 * 60 * 60 * 1000);
+
+      return doneCol.tasks.filter(task => {
+        if (!task.completedAt) return false;
+        return new Date(task.completedAt).getTime() < cutoff;
+      });
+    }
+
+    function getVisibleDoneTasks() {
+      if (!boardData) return [];
+
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return [];
+
+      const doneCol = board.columns.find(c => c.id === 'done');
+      if (!doneCol) return [];
+
+      if (archiveDays === 0) return doneCol.tasks;
+
+      const cutoff = Date.now() - (archiveDays * 24 * 60 * 60 * 1000);
+
+      return doneCol.tasks.filter(task => {
+        if (!task.completedAt) return true; // Keep tasks without completedAt visible
+        return new Date(task.completedAt).getTime() >= cutoff;
+      });
+    }
+
+    function renderArchivedTasks() {
+      const archived = getArchivedTasks();
+      const container = document.getElementById('archivedTasks');
+
+      if (archived.length === 0) {
+        container.innerHTML = '<div style="color:#666;font-style:italic;">No archived tasks</div>';
+        return;
+      }
+
+      container.innerHTML = archived.map(task => `
+        <div class="archived-task" data-task-id="${task.id}">
+          <button class="unarchive-btn" onclick="unarchiveTask('${task.id}')" title="Move back to Done">↩</button>
+          <div class="task-title">${escapeHtml(task.title)}</div>
+          <div class="task-meta">
+            Completed ${formatDate(task.completedAt)}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function updateArchiveCount() {
+      const count = getArchivedTasks().length;
+      document.getElementById('archiveCount').textContent = count;
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) return 'today';
+      if (diffDays === 1) return 'yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+      return date.toLocaleDateString();
+    }
+
+    async function unarchiveTask(taskId) {
+      // To "unarchive", we just update the completedAt to now
+      // This makes it appear recent again
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/task/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completedAt: new Date().toISOString() })
+        });
+        loadBoard();
+        if (showArchived) {
+          renderArchivedTasks();
+        }
+      } catch (err) {
+        console.error('Unarchive failed:', err);
+      }
+    }
+
+    async function clearArchive() {
+      const archived = getArchivedTasks();
+      if (archived.length === 0) return;
+
+      if (!confirm(`Permanently delete ${archived.length} archived tasks?`)) return;
+
+      try {
+        for (const task of archived) {
+          await fetch(`${API}/api/tasks/${currentBoardId}/task/${task.id}`, {
+            method: 'DELETE'
+          });
+        }
+        loadBoard();
+        renderArchivedTasks();
+      } catch (err) {
+        console.error('Clear archive failed:', err);
+      }
+    }
+
+    // ============================================
+    // TODAY'S FOCUS MANAGEMENT
+    // ============================================
+
+    const MAX_FOCUS_TASKS = 3;
+
+    function getTodayKey() {
+      return `todaysFocus-${currentBoardId}-${new Date().toDateString()}`;
+    }
+
+    function loadTodaysFocus() {
+      const key = getTodayKey();
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return [];
+        }
+      }
+      return [];
+    }
+
+    function saveTodaysFocus(taskIds) {
+      const key = getTodayKey();
+      localStorage.setItem(key, JSON.stringify(taskIds));
+      // Clean up old focus entries (keep only last 7 days)
+      cleanupOldFocusEntries();
+    }
+
+    function cleanupOldFocusEntries() {
+      const prefix = `todaysFocus-${currentBoardId}-`;
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('todaysFocus-') && key !== getTodayKey()) {
+          // Parse date from key and check if older than 7 days
+          const dateStr = key.split('-').slice(2).join('-');
+          const date = new Date(dateStr);
+          const daysOld = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysOld > 7) {
+            keysToRemove.push(key);
+          }
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+    }
+
+    function isTaskFocused(taskId) {
+      return loadTodaysFocus().includes(taskId);
+    }
+
+    function toggleTaskFocus(taskId, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+
+      const focusedTasks = loadTodaysFocus();
+      const index = focusedTasks.indexOf(taskId);
+
+      if (index > -1) {
+        // Remove from focus
+        focusedTasks.splice(index, 1);
+      } else {
+        // Add to focus (if under limit)
+        if (focusedTasks.length >= MAX_FOCUS_TASKS) {
+          alert(`You can only focus on ${MAX_FOCUS_TASKS} tasks per day. Remove one first.`);
+          return;
+        }
+        focusedTasks.push(taskId);
+      }
+
+      saveTodaysFocus(focusedTasks);
+      renderTodaysFocus();
+      renderBoard(); // Re-render to update star buttons
+    }
+
+    function clearTodaysFocus() {
+      if (!confirm('Clear all focused tasks for today?')) return;
+      saveTodaysFocus([]);
+      renderTodaysFocus();
+      renderBoard();
+    }
+
+    function updateModalStarButton() {
+      if (!editingTaskId) return;
+      const starBtn = document.getElementById('modalStarBtn');
+      const isFocused = isTaskFocused(editingTaskId);
+      starBtn.textContent = isFocused ? '★' : '☆';
+      starBtn.classList.toggle('starred', isFocused);
+      starBtn.title = isFocused ? 'Remove from Today\'s Focus' : 'Add to Today\'s Focus';
+    }
+
+    function toggleModalTaskFocus(event) {
+      if (!editingTaskId) return;
+      event.stopPropagation();
+      event.preventDefault();
+      toggleTaskFocus(editingTaskId);
+      updateModalStarButton();
+    }
+
+    function findTaskById(taskId) {
+      if (!boardData) return null;
+      const board = boardData.boards.find(b => b.id === currentBoardId);
+      if (!board) return null;
+
+      for (const col of board.columns) {
+        const task = col.tasks.find(t => t.id === taskId);
+        if (task) {
+          return { task, column: col };
+        }
+      }
+      return null;
+    }
+
+    function renderTodaysFocus() {
+      const focusedTaskIds = loadTodaysFocus();
+      const panel = document.getElementById('todaysFocusPanel');
+      const container = document.getElementById('todaysFocusTasks');
+      const countEl = document.getElementById('focusCount');
+
+      // Update count
+      countEl.textContent = `${focusedTaskIds.length}/${MAX_FOCUS_TASKS}`;
+
+      // Show/hide panel
+      if (focusedTaskIds.length > 0) {
+        panel.classList.add('has-tasks');
+      } else {
+        panel.classList.remove('has-tasks');
+      }
+
+      // Build task cards
+      const cards = [];
+      focusedTaskIds.forEach((taskId, index) => {
+        const found = findTaskById(taskId);
+        if (found) {
+          const { task, column } = found;
+          const priority = task.priority || 'medium';
+          cards.push(`
+            <div class="focus-task-card" onclick="editTask(event, '${task.id}', '${column.id}')">
+              <span class="task-number">${index + 1}</span>
+              <button class="unstar-btn" onclick="toggleTaskFocus('${task.id}', event)" title="Remove from focus">★</button>
+              <div class="focus-task-title">
+                ${escapeHtml(task.title)}
+                <span class="priority-badge priority-${priority}" style="font-size:0.65rem;">${priority.toUpperCase()}</span>
+              </div>
+              <div class="focus-task-column">📍 ${escapeHtml(column.title)}</div>
+            </div>
+          `);
+        }
+      });
+
+      // Add empty slots
+      for (let i = cards.length; i < MAX_FOCUS_TASKS; i++) {
+        cards.push(`<div class="focus-empty-slot">Press ⭐ on a task to focus</div>`);
+      }
+
+      container.innerHTML = cards.join('');
+    }
+
+    function toggleSelectedTaskFocus() {
+      const selected = getSelectedTask();
+      if (selected) {
+        toggleTaskFocus(selected.task.id);
+      }
+    }
+
+    // Confetti celebration
+    function celebrate() {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const particles = [];
+      const colors = ['#00d4ff', '#4ade80', '#fbbf24', '#f97316', '#818cf8', '#ec4899'];
+
+      for (let i = 0; i < 100; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: -10,
+          size: Math.random() * 8 + 4,
+          speedY: Math.random() * 3 + 2,
+          speedX: (Math.random() - 0.5) * 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360,
+          rotationSpeed: (Math.random() - 0.5) * 10
+        });
+      }
+
+      let frame = 0;
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        particles.forEach(p => {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rotation * Math.PI / 180);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+          ctx.restore();
+
+          p.y += p.speedY;
+          p.x += p.speedX;
+          p.rotation += p.rotationSpeed;
+          p.speedY += 0.1; // gravity
+        });
+
+        frame++;
+        if (frame < 120) {
+          requestAnimationFrame(animate);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+
+      animate();
+    }
+
+    function showKeyboardHelp() {
+      document.getElementById('hotkeysModal').classList.add('active');
+    }
+
+    function closeHotkeysModal() {
+      document.getElementById('hotkeysModal').classList.remove('active');
+    }
+
+    // ============================================
+    // MOBILE TOUCH DRAG & DROP
+    // ============================================
+
+    let touchDragTask = null;
+    let touchDragClone = null;
+    let touchStartY = 0;
+    let touchStartX = 0;
+    let touchCurrentColumn = null;
+    let touchScrolling = false;
+
+    function initTouchDrag() {
+      // Only init on touch devices
+      if (!('ontouchstart' in window)) return;
+
+      document.addEventListener('touchstart', handleTouchStart, { passive: false });
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd, { passive: false });
+    }
+
+    function handleTouchStart(e) {
+      const task = e.target.closest('.task');
+      if (!task) return;
+
+      // Store initial position
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchScrolling = false;
+
+      // Long press to start drag (300ms)
+      task.touchTimeout = setTimeout(() => {
+        if (touchScrolling) return;
+
+        // Haptic feedback if available
+        if (navigator.vibrate) navigator.vibrate(50);
+
+        touchDragTask = task;
+        draggedTaskId = task.dataset.taskId;
+        draggedFromColumn = task.dataset.columnId;
+
+        // Create floating clone
+        const rect = task.getBoundingClientRect();
+        touchDragClone = task.cloneNode(true);
+        touchDragClone.className = 'task touch-drag-clone';
+        touchDragClone.style.cssText = `
+          position: fixed;
+          left: ${rect.left}px;
+          top: ${rect.top}px;
+          width: ${rect.width}px;
+          pointer-events: none;
+          z-index: 10000;
+          opacity: 0.9;
+          transform: scale(1.05);
+          box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+          transition: transform 0.1s;
+        `;
+        document.body.appendChild(touchDragClone);
+
+        // Dim original
+        task.style.opacity = '0.3';
+        task.classList.add('dragging');
+
+        // Disable board scrolling while dragging
+        document.querySelector('.board').style.overflow = 'hidden';
+      }, 300);
+    }
+
+    function handleTouchMove(e) {
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartX);
+      const deltaY = Math.abs(touch.clientY - touchStartY);
+
+      // If moved too much before long press, it's scrolling
+      if (!touchDragTask && (deltaX > 10 || deltaY > 10)) {
+        touchScrolling = true;
+        const task = e.target.closest('.task');
+        if (task && task.touchTimeout) {
+          clearTimeout(task.touchTimeout);
+        }
+        return;
+      }
+
+      // If we're dragging, move the clone
+      if (touchDragTask && touchDragClone) {
+        e.preventDefault();
+
+        const x = touch.clientX;
+        const y = touch.clientY;
+
+        // Move clone to finger position
+        touchDragClone.style.left = (x - touchDragClone.offsetWidth / 2) + 'px';
+        touchDragClone.style.top = (y - 30) + 'px';
+
+        // Find column under touch point
+        const elemBelow = document.elementFromPoint(x, y);
+        const column = elemBelow?.closest('.column-tasks');
+
+        // Update drop target highlighting
+        document.querySelectorAll('.column-tasks').forEach(col => {
+          col.classList.remove('drag-over');
+        });
+
+        if (column) {
+          column.classList.add('drag-over');
+          touchCurrentColumn = column;
+
+          // Position indicator
+          const afterElement = getDragAfterElement(column, y);
+          const indicator = getOrCreateDropIndicator();
+
+          if (afterElement) {
+            column.insertBefore(indicator, afterElement);
+          } else {
+            column.appendChild(indicator);
+          }
+        }
+      }
+    }
+
+    function handleTouchEnd(e) {
+      // Clear long press timeout
+      const task = e.target.closest('.task');
+      if (task && task.touchTimeout) {
+        clearTimeout(task.touchTimeout);
+      }
+
+      // If we were dragging, complete the drop
+      if (touchDragTask && touchDragClone) {
+        // Re-enable board scrolling
+        document.querySelector('.board').style.overflow = '';
+
+        // Remove clone
+        touchDragClone.remove();
+        touchDragClone = null;
+
+        // Reset original task appearance
+        touchDragTask.style.opacity = '';
+        touchDragTask.classList.remove('dragging');
+
+        // Perform the drop if over a column
+        if (touchCurrentColumn && draggedTaskId) {
+          const toColumnId = touchCurrentColumn.dataset.columnId;
+          if (toColumnId && toColumnId !== draggedFromColumn) {
+            // Calculate drop index
+            const tasks = touchCurrentColumn.querySelectorAll('.task');
+            let toIndex = tasks.length;
+
+            performDrop(draggedTaskId, draggedFromColumn, toColumnId, toIndex);
+          }
+        }
+
+        // Cleanup
+        document.querySelectorAll('.column-tasks').forEach(col => {
+          col.classList.remove('drag-over');
+        });
+        removeDropIndicator();
+
+        touchDragTask = null;
+        touchCurrentColumn = null;
+        draggedTaskId = null;
+        draggedFromColumn = null;
+      }
+    }
+
+    function getOrCreateDropIndicator() {
+      let indicator = document.getElementById('touch-drop-indicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'touch-drop-indicator';
+        indicator.style.cssText = `
+          height: 4px;
+          background: #00d4ff;
+          border-radius: 2px;
+          margin: 8px 0;
+          transition: all 0.15s;
+        `;
+      }
+      return indicator;
+    }
+
+    function removeDropIndicator() {
+      const indicator = document.getElementById('touch-drop-indicator');
+      if (indicator) indicator.remove();
+    }
+
+    async function performDrop(taskId, fromColumnId, toColumnId, toIndex) {
+      const wasNotDone = fromColumnId !== 'done';
+      const movingToDone = toColumnId === 'done';
+
+      try {
+        await fetch(`${API}/api/tasks/${currentBoardId}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: taskId,
+            fromColumnId: fromColumnId,
+            toColumnId: toColumnId,
+            toIndex: toIndex
+          })
+        });
+
+        // Celebrate if completing a task
+        if (wasNotDone && movingToDone) {
+          celebrate();
+        }
+
+        loadBoard();
+      } catch (err) {
+        console.error('Move failed:', err);
+      }
+    }
+
+    // Mobile column indicator (shows dots for which column you're on)
+    function initMobileColumnIndicator() {
+      if (window.innerWidth > 768) return;
+
+      const board = document.querySelector('.board');
+      if (!board) return;
+
+      // Create indicator container
+      let indicator = document.querySelector('.mobile-column-indicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.className = 'mobile-column-indicator';
+        board.parentNode.insertBefore(indicator, board.nextSibling);
+      }
+
+      // Update dots on scroll
+      board.addEventListener('scroll', updateColumnIndicator);
+      updateColumnIndicator();
+    }
+
+    function updateColumnIndicator() {
+      const board = document.querySelector('.board');
+      const indicator = document.querySelector('.mobile-column-indicator');
+      if (!board || !indicator) return;
+
+      const columns = board.querySelectorAll('.column');
+      const scrollLeft = board.scrollLeft;
+      const columnWidth = columns[0]?.offsetWidth || 300;
+      const activeIndex = Math.round(scrollLeft / (columnWidth + 12));
+
+      indicator.innerHTML = Array.from(columns).map((_, i) =>
+        `<div class="mobile-column-dot ${i === activeIndex ? 'active' : ''}"></div>`
+      ).join('');
+    }
+
+    // Initialize touch features after DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      initTouchDrag();
+      setTimeout(initMobileColumnIndicator, 500);
+    });
+
+    // Reinit on resize
+    window.addEventListener('resize', () => {
+      setTimeout(initMobileColumnIndicator, 100);
+    });
+    
+    // Initial load + auto-refresh
+    loadTabState();
+    loadBoard();
+    setInterval(loadBoard, 30000);
+  </script>
+</body>
+</html>
