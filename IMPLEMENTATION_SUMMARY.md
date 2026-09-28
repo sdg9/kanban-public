@@ -28,7 +28,7 @@ The multi-board tabs feature has been successfully implemented according to the 
 
 ## Files Modified
 
-### Frontend: `/Users/steven/clawd/jarvis-kanban/public/index.html`
+### Frontend: `./public/index.html`
 - Added tab bar CSS (lines 1023-1140)
 - Added tab bar HTML (line 1044)
 - Added board picker modal (lines 1103-1117)
@@ -36,7 +36,7 @@ The multi-board tabs feature has been successfully implemented according to the 
 - Added keyboard shortcuts (lines 2107-2133)
 - Updated help text (lines 2586-2642)
 
-### Backend: `/Users/steven/clawd/jarvis-kanban/server.js`
+### Backend: `./server.js`
 - Added POST /api/board endpoint (lines 64-111)
 - Added DELETE /api/board/:boardId endpoint (lines 113-133)
 
@@ -71,7 +71,7 @@ The multi-board tabs feature has been successfully implemented according to the 
 ## Current System State
 
 **Boards Available:**
-1. "Jarvis Board" (id: default)
+1. "Kanban_Bot Board" (id: default)
 2. "Work Projects" (id: board-1769919991824)
 3. "Personal Tasks" (id: board-1769919991830)
 
@@ -81,14 +81,14 @@ The multi-board tabs feature has been successfully implemented according to the 
 
 ### Start the Application
 ```bash
-cd /Users/steven/clawd/jarvis-kanban
+cd .
 npm start
 ```
 
 Then open: http://localhost:8888
 
 ### Quick Test Workflow
-1. Notice single "Jarvis Board" tab on load
+1. Notice single "Kanban_Bot Board" tab on load
 2. Click "+ Add Tab" button
 3. See list of 3 available boards
 4. Click "Work Projects" to open it in new tab
@@ -173,7 +173,7 @@ All success criteria from the plan have been met:
 
 If needed, rollback with:
 ```bash
-cd /Users/steven/clawd/jarvis-kanban
+cd .
 git checkout HEAD -- public/index.html server.js
 ```
 

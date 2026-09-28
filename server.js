@@ -27,11 +27,11 @@ function ensureTasksFile() {
       lastUpdated: new Date().toISOString(),
       boards: [{
         id: 'default',
-        title: 'Jarvis Board',
+        title: 'Kanban_Bot Board',
         columns: [
           { id: 'backlog', title: '📋 Backlog', tasks: [] },
           { id: 'in-progress', title: '🔄 In Progress', tasks: [] },
-          { id: 'waiting', title: '⏳ Waiting for Steven', tasks: [] },
+          { id: 'waiting', title: '⏳ Waiting for Human', tasks: [] },
           { id: 'done', title: '✅ Done', tasks: [] }
         ]
       }]
@@ -311,11 +311,11 @@ app.patch('/api/tasks/:boardId/task/:taskId', (req, res) => {
     const board = data.boards.find(b => b.id === req.params.boardId);
     if (!board) return res.status(404).json({ error: 'Board not found' });
     
-    // If comments are being updated, ensure each has an author (default to Jarvis for API calls)
+    // If comments are being updated, ensure each has an author (default to Kanban_Bot for API calls)
     if (req.body.comments && Array.isArray(req.body.comments)) {
       req.body.comments = req.body.comments.map(comment => ({
         ...comment,
-        author: comment.author || 'Jarvis',
+        author: comment.author || 'Kanban_Bot',
         id: comment.id || `comment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         timestamp: comment.timestamp || new Date().toISOString()
       }));
@@ -365,7 +365,7 @@ app.post('/api/tasks/:boardId/task/:taskId/comment', (req, res) => {
     const comment = {
       id: `comment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: text.trim(),
-      author: author || 'Jarvis',
+      author: author || 'Kanban_Bot',
       timestamp: new Date().toISOString()
     };
     
@@ -448,7 +448,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🤖 Jarvis Kanban server running on http://localhost:${PORT}`);
+  console.log(`🤖 Kanban_Bot server running on http://localhost:${PORT}`);
   console.log(`📁 Tasks file: ${TASKS_PATH}`);
   ensureTasksFile();
 });

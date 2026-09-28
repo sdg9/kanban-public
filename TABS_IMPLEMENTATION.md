@@ -114,7 +114,7 @@ Each board maintains independent:
 
 ## Files Modified
 
-### `/Users/steven/clawd/jarvis-kanban/public/index.html`
+### `./public/index.html`
 1. **Lines 1023-1140**: Added tab bar CSS styles
 2. **Line 1044**: Inserted tab bar HTML `<div id="tabBar">`
 3. **Lines 1103-1117**: Added board picker modal HTML
@@ -125,7 +125,7 @@ Each board maintains independent:
 8. **Line 2627**: Initialize tab state on page load
 9. **Lines 2586-2642**: Updated help text with tab shortcuts
 
-### `/Users/steven/clawd/jarvis-kanban/server.js`
+### `./server.js`
 1. **Lines 64-111**: Added `POST /api/board` endpoint
 2. **Lines 113-133**: Added `DELETE /api/board/:boardId` endpoint
 

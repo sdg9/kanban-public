@@ -3,7 +3,7 @@
 ## Quick Start
 
 1. **Open the app**: Navigate to http://localhost:8888
-2. **Default view**: You'll see one tab labeled "Jarvis Board"
+2. **Default view**: You'll see one tab labeled "Kanban_Bot Board"
 3. **Add more tabs**: Click "+ Add Tab" button in tab bar
 
 ## Opening Boards in Tabs

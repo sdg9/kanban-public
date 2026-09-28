@@ -1,12 +1,12 @@
-# Jarvis Kanban Skill
+# Kanban_Bot Skill
 
-Manage tasks on the Jarvis Kanban board via CLI or REST API.
+Manage tasks on the Kanban_Bot board via CLI or REST API.
 
 ## Quick Start
 
 **CLI (recommended for simple ops):**
 ```bash
-node ~/.openclaw/skills/kanban/kanban.js view
+node skill/kanban.js view
 ```
 
 **API (for full control):**
@@ -21,7 +21,7 @@ curl -s http://localhost:8888/api/tasks | jq
 The CLI directly reads/writes the tasks.json file.
 
 ```bash
-KANBAN=~/.openclaw/skills/kanban/kanban.js
+KANBAN=skill/kanban.js
 
 # View all tasks (pretty print)
 node $KANBAN view
@@ -51,7 +51,7 @@ node $KANBAN stats
 | P4 | 🟢 | Low - nice to have |
 
 ### Labels
-- **Context:** `work`, `marqeta`, `side-biz`, `family`, `faith`, `home`
+- **Context:** `work`, `home`
 - **Status:** `quick-win`, `blocked`, `waiting`, `recurring`
 
 ### Effort
@@ -129,7 +129,7 @@ curl -s -X POST http://localhost:8888/api/tasks/default/task/task-XXXXX/comment 
   -H "Content-Type: application/json" \
   -d '{"text": "Progress update here"}' | jq
 ```
-Note: Author defaults to "Jarvis" for API calls.
+Note: Author defaults to "Kanban_Bot" for API calls.
 
 #### Find task by title
 ```bash
@@ -168,7 +168,7 @@ Default columns:
 
 ## Data Location
 
-Tasks stored in Google Drive:
+Tasks stored at:
 ```
 ~/kanban/tasks.json (configure via TASKS_PATH env var)
 ```
@@ -179,7 +179,7 @@ Tasks stored in Google Drive:
 
 If API server isn't running:
 ```bash
-cd /Users/steven/clawd/jarvis-kanban && npm start &
+npm start &
 ```
 
 Check status:
@@ -191,4 +191,4 @@ curl -s http://localhost:8888/api/health || echo "Server not running"
 
 ## Full API Reference
 
-See `/Users/steven/clawd/jarvis-kanban/API.md` for complete endpoint documentation.
+See [API.md](./API.md) for complete endpoint documentation.

@@ -1,11 +1,11 @@
-# Jarvis Kanban
+# Kanban_Bot
 
-A kanban board with file-system backend, designed for AI assistants (like OpenClaw/Jarvis) to manage tasks.
+A kanban board with file-system backend, designed for AI assistants to manage tasks.
 
 ## Architecture
 
 ```
-Browser ──▶ Node Server ──▶ Google Drive (tasks.json)
+Browser ──▶ Node Server ──▶ tasks.json (local or cloud-synced)
                 ▲
                 │
           AI Assistant (API calls or file writes)
@@ -14,7 +14,6 @@ Browser ──▶ Node Server ──▶ Google Drive (tasks.json)
 ## Quick Start
 
 ```bash
-cd jarvis-kanban
 npm install
 npm start
 # Visit http://localhost:8888
@@ -22,9 +21,9 @@ npm start
 
 ## Data Location
 
-Tasks stored in Google Drive for cross-machine sync:
+Tasks stored locally (or synced via cloud storage):
 ```
-~/Library/CloudStorage/GoogleDrive-.../My Drive/Jarvis/kanban/tasks.json
+~/kanban/tasks.json
 ```
 
 Override with `TASKS_PATH` env var or `.env` file.
@@ -35,7 +34,7 @@ Override with `TASKS_PATH` env var or `.env` file.
 |----------|-------------|
 | [API.md](./API.md) | Full REST API reference |
 | [USAGE.md](./USAGE.md) | UI usage guide and keyboard shortcuts |
-| [skill/SKILL.md](./skill/SKILL.md) | OpenClaw skill instructions |
+| [skill/SKILL.md](./skill/SKILL.md) | Skill instructions |
 
 ## API Quick Reference
 
@@ -78,7 +77,7 @@ curl -X POST http://localhost:8888/api/tasks/default/move \
   -d '{"taskId":"task-XXX","fromColumnId":"in-progress","toColumnId":"done"}'
 ```
 
-See [skill/SKILL.md](./skill/SKILL.md) for complete OpenClaw integration instructions.
+See [skill/SKILL.md](./skill/SKILL.md) for complete integration instructions.
 
 ## Features
 

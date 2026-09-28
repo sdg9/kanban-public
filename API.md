@@ -1,4 +1,4 @@
-# Jarvis Kanban API Reference
+# Kanban_Bot API Reference
 
 Base URL: `http://localhost:8888`
 
@@ -337,14 +337,14 @@ Add a comment to a task (append-only, no overwrite risk).
 ```json
 {
   "text": "Comment text here",
-  "author": "Jarvis"
+  "author": "Kanban_Bot"
 }
 ```
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | text | Yes | - | Comment text |
-| author | No | `Jarvis` | Author name (defaults to Jarvis for API calls) |
+| author | No | `Kanban_Bot` | Author name (defaults to Kanban_Bot for API calls) |
 
 **Response:**
 ```json
@@ -353,7 +353,7 @@ Add a comment to a task (append-only, no overwrite risk).
   "comment": {
     "id": "comment-1234567890-abc123",
     "text": "Comment text here",
-    "author": "Jarvis",
+    "author": "Kanban_Bot",
     "timestamp": "2026-02-01T00:10:00.000Z"
   }
 }
